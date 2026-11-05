@@ -249,6 +249,17 @@ const LEVELS = [
     jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.65 }, { id: 'jo', c: 'o', cap: 1, x: -0.25 }, { id: 'jp', c: 'p', cap: 3, x: 0.95 }],
     valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
              { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+  // 8. большой: «Завод» — всё сразу, чтобы увидеть глубину. Ромб A / B C / D, четыре цвета, 8 клапанов, D — общая перевалка.
+  //    Розовые по краям C развести через D (зелёный A войдёт в C только между ними), B заперта до зелёной банки,
+  //    оранжевый из B — в D через оранжевый клапан, D отдаёт очередью: сначала розовый, потом оранжевый. Найден tools/bigsearch.mjs.
+  { n: 8, name: 'Завод', hint: '',
+    rings: [{ id: 'A', x: 0, y: 7.4, fill: 'gb', o: 2 }, { id: 'B', x: -1.35, y: 4.6, fill: 'boo', o: 5, lock: 'g' },
+            { id: 'C', x: 1.35, y: 4.6, fill: 'pgp', o: 0 }, { id: 'D', x: 0, y: 1.8, fill: '', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -2.0 }, { id: 'jo', c: 'o', cap: 2, x: -0.65 }, { id: 'jp', c: 'p', cap: 2, x: 0.65 }, { id: 'jg', c: 'g', cap: 2, x: 2.0 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TR', c: '' }, { id: 'vA2', from: 'A', at: 'BR', to: 'C', in: 'TL', c: 'g' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'D', in: 'TL', c: 'o' },
+             { id: 'vC1', from: 'C', at: 'BL', to: 'D', in: 'TR', c: '' }, { id: 'vC2', from: 'C', at: 'BR', to: 'jg', c: 'g' },
+             { id: 'vD1', from: 'D', at: 'BL', to: 'jo', c: 'o' }, { id: 'vD2', from: 'D', at: 'BR', to: 'jp', c: 'p' }] },
 ];
 
 // ---- геометрия (общая для рендера и проверки раскладки) ----
@@ -454,10 +465,11 @@ function solve(s){
   }
   return null;
 }
-// Полный граф уровня: сколько состояний, сколько тупиков; good — множество состояний, откуда победа достижима.
-const GRAPH = new WeakMap();
-function graphOf(L){
-  let G0 = GRAPH.get(L); if (G0) return G0;
+// Полный граф уровня: сколько состояний, сколько тупиков; good — множество состояний, откуда победа достижима;
+// dist — щелчков до победы из состояния (обратный поиск в ширину от побед). Строится генератором: sim и тесты прогоняют его разом
+// (graphOf), игра — порциями между кадрами (graphAsync), чтобы большой уровень не подвешивал экран.
+const GRAPH = new WeakMap(), GRAPH_PENDING = new WeakMap();
+function* graphGen(L){
   const s = createState(-1, L), seen = new Map(), q = [s]; seen.set(stateKey(s), { win: isWin(s), next: [] });
   for (let qi = 0; qi < q.length && seen.size < CFG.SOLVE_LIMIT; qi++){
     const cur = q[qi], ck = stateKey(cur);
@@ -466,14 +478,58 @@ function graphOf(L){
       seen.get(ck).next.push(k);
       if (!seen.has(k)){ seen.set(k, { win: isWin(nx), next: [] }); q.push(nx); }
     }
+    q[qi] = null;
+    if ((qi & 511) === 511) yield;
   }
   const prev = new Map(); for (const [k, v] of seen) for (const x of v.next){ if (!prev.has(x)) prev.set(x, []); prev.get(x).push(k); }
-  const good = new Set(), st = [];
-  for (const [k, v] of seen) if (v.win){ good.add(k); st.push(k); }
-  while (st.length){ const k = st.pop(); for (const p of (prev.get(k) || [])) if (!good.has(p)){ good.add(p); st.push(p); } }
-  G0 = { seen, good }; GRAPH.set(L, G0); return G0;
+  yield;
+  const dist = new Map(), bq = [];
+  for (const [k, v] of seen) if (v.win){ dist.set(k, 0); bq.push(k); }
+  for (let i = 0; i < bq.length; i++){ const k = bq[i], d = dist.get(k); for (const p of (prev.get(k) || [])) if (!dist.has(p)){ dist.set(p, d + 1); bq.push(p); } if ((i & 4095) === 4095) yield; }
+  return { seen, good: dist, dist, full: seen.size < CFG.SOLVE_LIMIT };
 }
-function isDead(s){ if (isWin(s)) return false; const g = graphOf(s.L), k = stateKey(s); if (g.seen.has(k)) return !g.good.has(k); return solve(s) === null; }
+function graphOf(L){
+  let G0 = GRAPH.get(L); if (G0) return G0;
+  const it = graphGen(L); let r; do r = it.next(); while (!r.done);
+  GRAPH.set(L, r.value); GRAPH_PENDING.delete(L); return r.value;
+}
+// Игра: граф порциями не дольше budget мс за раз; done(g) — когда готов. Пока считается, isDead работает по короткому перебору.
+function graphAsync(L, done, budget){
+  if (GRAPH.has(L)){ done(GRAPH.get(L)); return; }
+  const it = graphGen(L); GRAPH_PENDING.set(L, true);
+  const tick = () => { if (!GRAPH_PENDING.has(L)) return; const t0 = Date.now(); let r;
+    do r = it.next(); while (!r.done && Date.now() - t0 < (budget || 8));
+    if (r.done){ GRAPH.set(L, r.value); GRAPH_PENDING.delete(L); done(r.value); } else setTimeout(tick, 0); };
+  setTimeout(tick, 0);
+}
+// Короткий перебор от состояния: путь, null — тупик наверняка, undefined — не уложились в предел (неизвестно).
+function solveLimited(s, limit){
+  if (isWin(s)) return [];
+  const start = { rings: s.rings.map(r => r.slice()), ang: s.ang.slice(), jars: s.jars.slice(), L: s.L, hist: [], moves: 0 };
+  const seen = new Map([[stateKey(start), null]]), q = [start];
+  for (let qi = 0; qi < q.length; qi++){
+    if (seen.size > limit) return undefined;
+    const cur = q[qi], ck = stateKey(cur);
+    for (const m of legalMoves(cur)){
+      const nx = applyMove(cur, m); nx.hist = []; const k = stateKey(nx);
+      if (seen.has(k)) continue;
+      seen.set(k, { from: ck, move: m });
+      if (isWin(nx)){ const path = []; let at = k; while (seen.get(at)){ path.push(seen.get(at).move); at = seen.get(at).from; } return path.reverse(); }
+      q.push(nx);
+    }
+  }
+  return null;
+}
+// Подсказка по графу: щелчок к соседу, ближайшему к победе. Граф не готов — короткий перебор; null — тупик/неизвестно.
+function hintMove(s){
+  const g = GRAPH.get(s.L);
+  if (g){ let best = null, bd = Infinity; for (const m of legalMoves(s)){ const d = g.dist.get(stateKey(applyMove(s, m))); if (d !== undefined && d < bd){ bd = d; best = m; } } return best; }
+  const p = solveLimited(s, 40000); return p && p.length ? p[0] : null;
+}
+function isDead(s){
+  if (isWin(s)) return false;
+  if (GRAPH_PENDING.has(s.L)) return solveLimited(s, 8000) === null;      // граф ещё считается: тупик, только если перебор это доказал
+  const g = graphOf(s.L), k = stateKey(s); if (g.seen.has(k)) return !g.good.has(k); return solve(s) === null; }
 function isLose(s){ return isDead(s); }
 function analyze(li){
   const s = typeof li === 'object' ? (li.rings && li.ang ? li : createState(-1, li)) : createState(li);
@@ -788,8 +844,10 @@ function hideDead(){ G.dead = null; $('dead').classList.remove('show'); $('btn-u
 function scheduleAnalyze(){
   if (!G.booted){ G.needAnalyze = true; return; }
   const L = G.s && G.s.L; if (!L) return;
-  setTimeout(() => { if (!G.s || G.s.L !== L) return; const a = analyze(createState(G.s.li)); G.par = a.par;
-    log('event', 'level.start', 'level=' + (G.s.li + 1) + ' par=' + a.par + ' states=' + a.states + ' dead=' + a.dead); }, 80);
+  setTimeout(() => { if (!G.s || G.s.L !== L) return; const t0 = performance.now();
+    graphAsync(L, (g) => { if (!G.s || G.s.L !== L) return; const d = g.dist.get(stateKey(createState(G.s.li))); G.par = d === undefined ? -1 : d;
+      log('event', 'level.start', 'level=' + (G.s.li + 1) + ' par=' + G.par + ' states=' + g.seen.size + ' dead=' + (g.seen.size - g.good.size) + ' graph=' + Math.round(performance.now() - t0) + 'ms');
+      if (!G.pour && !G.ending){ const reason = deadReason(G.s); if (reason) showDead(reason); } }); }, 80);
 }
 function startLevel(li){
   G.s = createState(li); G.view = cloneState(G.s); G.pour = null; G.press = null; G.fx = []; G.ending = 0; G.hint = null; G.punch = 0; G.flashBg = 0; if (R3) R3.parts = [];
@@ -798,7 +856,7 @@ function startLevel(li){
   G.par = -1; scheduleAnalyze();
   if (R3) buildLevel(G.s.L);
   goto('game'); hud();
-  if (li === 0 && !G.save.done[0]) setTimeout(() => { if (G.s && G.s.li === 0 && !G.s.moves){ const sol = solve(G.s); if (sol && sol.length) G.hint = { m: sol[0], until: now() + 4000 }; } }, 900);
+  if (li === 0 && !G.save.done[0]) setTimeout(() => { if (G.s && G.s.li === 0 && !G.s.moves){ const m = hintMove(G.s); if (m !== null) G.hint = { m, until: now() + 4000 }; } }, 900);
 }
 
 // ===========================================================================
@@ -1695,7 +1753,7 @@ function undo(){
   hud();
 }
 function showHint(m, ms){
-  if (m === undefined){ const sol = G.s && solve(G.s); if (!sol){ toast('Отсюда не выйти — отмени ход'); return; } m = sol[0]; }
+  if (m === undefined){ m = G.s ? hintMove(G.s) : null; if (m === null){ toast(G.s && GRAPH_PENDING.has(G.s.L) ? 'Секунду — считаю' : 'Отсюда не выйти — отмени ход'); return; } }
   G.hint = { m, until: now() + (ms || 2600) }; log('event', 'hint', 'ring=' + G.s.L.rings[m >> 1].id + ' dir=' + ((m & 1) ? 'ccw' : 'cw'));
   toast(((m & 1) ? 'Против часовой' : 'По часовой') + ': подкова ' + G.s.L.rings[m >> 1].id, 1800);
 }
