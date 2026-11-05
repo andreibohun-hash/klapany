@@ -1,0 +1,2042 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Клапаны · Подковы</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#9d86f0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+@font-face{font-family:"Nunito";font-style:normal;font-weight:200 1000;font-display:swap;src:url(assets/fonts/nunito-cyr.woff2) format("woff2");unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:200 1000;font-display:swap;src:url(assets/fonts/nunito-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+/* Палитра — одно место (PROTO-BASE §9). Сиреневый фон как на референсе; 3D-фон рисует шейдер теми же цветами (VIEW.BG_*). */
+:root{
+  --bg:#2a2140; --frame:#9d86f0; --ink:#ffffff; --ink2:#3a2a7a; --muted:#e6defe;
+  --panel:#6b4fd8; --panel2:#5a3fc4; --accent:#ffd23a; --accent-ink:#4a2a00; --danger:#ff4d6d; --card:#fbf8ff;
+  --frame-w:440px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.3 "Nunito", system-ui, sans-serif;font-weight:700;
+  overflow:hidden;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+#frame{position:relative;width:min(100vw,var(--frame-w));height:100dvh;height:100svh;margin:0 auto;background:linear-gradient(#c9b8ff,#8b72e8);
+  display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);overflow:hidden}
+header{position:absolute;left:0;right:0;top:env(safe-area-inset-top);z-index:3;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none}
+header .title{display:flex;flex-direction:column;align-items:center;text-shadow:0 2px 0 rgba(60,30,140,.35)}
+header .title b{font-size:20px;font-weight:900;letter-spacing:.2px} header .title span{font-size:13px;color:var(--muted)}
+header button{pointer-events:auto}
+.ico{width:44px;height:44px;border-radius:14px;border:0;background:var(--panel);box-shadow:0 4px 0 var(--panel2);display:grid;place-items:center;cursor:pointer;padding:0}
+.ico svg{width:24px;height:24px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.ico.off .wave{display:none} .ico:not(.off) .slash{display:none}
+#hint{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top) + 66px);z-index:2;text-align:center;font-size:15px;color:#fff;padding:0 24px;pointer-events:none;
+  text-shadow:0 2px 0 rgba(60,30,140,.35)}
+#game{flex:1;position:relative;touch-action:none}
+#game canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .35s}
+#game canvas.ready{opacity:1}
+footer{position:relative;z-index:3;display:flex;gap:10px;justify-content:center;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(rgba(107,79,216,0),rgba(90,63,196,.35))}
+footer button{flex:1;max-width:120px;height:56px;border:0;border-radius:16px;background:var(--panel);box-shadow:0 5px 0 var(--panel2);color:#fff;font:inherit;font-weight:800;font-size:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer}
+footer button svg{width:24px;height:24px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+footer button:disabled{opacity:.5}
+footer button.pulse{background:var(--accent);color:var(--accent-ink);box-shadow:0 5px 0 #d79c00;animation:pulse 1s ease-in-out infinite}
+footer button.pulse svg{stroke:var(--accent-ink)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+button:active{transform:translateY(2px)}
+#dead{position:absolute;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 64px);z-index:4;display:none;background:rgba(255,255,255,.96);color:var(--ink2);border-radius:18px;
+  padding:12px 14px;box-shadow:0 8px 24px rgba(40,10,110,.35);font-size:15px;line-height:1.3}
+#dead.show{display:flex;gap:10px;align-items:center}
+#dead b{color:var(--danger);display:block;font-size:13px;letter-spacing:.5px;text-transform:uppercase}
+#dead button{flex:none;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:900;padding:10px 12px;box-shadow:0 4px 0 #d79c00;cursor:pointer}
+#overlay{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(48,24,120,.45);padding:20px}
+#overlay.show{display:flex}
+.card{background:var(--card);color:var(--ink2);border-radius:26px;padding:24px 20px;max-width:350px;width:100%;text-align:center;box-shadow:0 14px 40px rgba(30,10,90,.4);
+  animation:pop .2s ease-out}
+@keyframes pop{from{transform:scale(.96)}to{transform:scale(1)}}  /* стартует с видимого состояния (§9) */
+.card h1.logo{margin:0 0 6px;font-size:44px;font-weight:1000;color:#fff;-webkit-text-stroke:2px var(--ink2);text-shadow:0 4px 0 var(--ink2)}
+.card h2{margin:0 0 8px;font-size:30px;font-weight:1000} .card p{color:#6a5aa8;margin:0 0 16px;font-weight:700}
+.card button{font:inherit;font-weight:900;border:0;border-radius:14px;padding:12px 16px;background:#ece6ff;color:var(--ink2);cursor:pointer;margin:4px}
+.card button.primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 4px 0 #d79c00}
+.card button.big{font-size:20px;padding:14px 22px;width:100%}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}
+.levels .lv{margin:0;padding:12px 0;font-size:18px}
+.levels .lv.done{background:#c8f5d4;color:#1f6b38} .levels .lv.cur{outline:3px solid var(--panel)}
+.rules{text-align:left;padding-left:18px;margin:0 0 14px;color:#4b3b8c;font-weight:700} .rules li{margin:6px 0}
+#toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:4;background:rgba(40,20,100,.88);color:#fff;padding:9px 16px;border-radius:14px;
+  pointer-events:none;opacity:.98;transition:opacity .25s;max-width:86%;text-align:center;font-size:15px}
+#toast.hide{opacity:0}
+/* карточка победы: без цифр — слово, лучи, искры, одна кнопка. Кейфреймы стартуют с видимого состояния (§9) */
+#overlay.win{background:radial-gradient(90% 60% at 50% 34%, rgba(255,236,170,.42), rgba(52,26,128,.40) 78%)}
+.card.wincard{background:none;box-shadow:none;padding:0;position:relative;overflow:visible;margin-top:-30vh;animation:none;color:#fff}
+.wincard .burst{position:absolute;left:50%;top:34px;width:600px;height:600px;margin:-300px 0 0 -300px;border-radius:50%;pointer-events:none;
+  background:repeating-conic-gradient(rgba(255,245,200,.55) 0deg 8deg, rgba(255,245,200,0) 8deg 20deg);
+  -webkit-mask-image:radial-gradient(circle, #000 0, rgba(0,0,0,.8) 22%, transparent 64%); mask-image:radial-gradient(circle, #000 0, rgba(0,0,0,.8) 22%, transparent 64%);
+  animation:wspin 16s linear infinite, wburst .7s cubic-bezier(.2,1.5,.4,1) both}
+.wincard .glow{position:absolute;left:50%;top:34px;width:280px;height:280px;margin:-140px 0 0 -140px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle, rgba(255,251,225,.95), rgba(255,222,120,.4) 42%, rgba(255,222,120,0) 70%);animation:wbreath 1.8s ease-in-out infinite}
+.wincard .word{position:relative;font-size:clamp(46px,15vw,66px);font-weight:1000;line-height:1.05;white-space:nowrap;color:#ffe15a;
+  -webkit-text-stroke:3px #3b1b8f;paint-order:stroke fill;text-shadow:0 6px 0 #3b1b8f,0 14px 28px rgba(40,10,110,.45)}
+.wincard .word span{display:inline-block;animation:wletter .6s cubic-bezier(.2,1.8,.35,1) both, wbob 1.9s ease-in-out infinite}
+.wincard .sp{position:absolute;display:block;pointer-events:none;animation:wtw 1.5s ease-in-out infinite;background:radial-gradient(circle,#fff 0 22%,#ffe98a 48%,#ffc928 75%);
+  clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%)}   /* звёздочка без глифа: ✦ нет в Nunito, поиск запасного шрифта стоил кадр в 1 с */
+.wincard button.go{position:relative;margin-top:40px;width:auto;min-width:230px;font-size:24px;padding:16px 36px;border-radius:22px;overflow:hidden;
+  box-shadow:0 6px 0 #d79c00,0 10px 30px rgba(255,200,40,.5);animation:wgo .5s .45s cubic-bezier(.2,1.7,.4,1) both, pulse 1.3s 1.3s ease-in-out infinite}
+.wincard button.go::after{content:'';position:absolute;top:0;bottom:0;width:45%;left:-70%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.8),transparent);animation:wshine 2.4s 1.1s ease-in-out infinite}
+@keyframes wspin{to{rotate:360deg}}
+@keyframes wburst{from{scale:.3}to{scale:1}}
+@keyframes wbreath{50%{scale:1.14}}
+@keyframes wletter{from{transform:translateY(-38px) scale(.4) rotate(-16deg)}to{transform:none}}
+@keyframes wbob{50%{translate:0 -6px}}
+@keyframes wtw{0%,100%{scale:.55;rotate:0deg}50%{scale:1.2;rotate:35deg}}
+@keyframes wgo{from{scale:.55}to{scale:1}}
+@keyframes wshine{0%{left:-70%}55%,100%{left:135%}}
+@media (prefers-reduced-motion: reduce){ .wincard *, .wincard *::after{animation:none!important} }
+@media (prefers-reduced-motion: reduce){ .card{animation:none} #toast{transition:none} footer button.pulse{animation:none} }
+</style>
+</head>
+<body>
+<div id="frame">
+  <header>
+    <button class="ico" id="btn-menu" aria-label="меню"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
+    <div class="title"><b id="hud-level">1 · Кран</b><span id="hud-moves"></span></div>
+    <button class="ico" id="btn-mute" aria-label="звук"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="slash" d="M16 9l5 6M21 9l-5 6"/></svg></button>
+  </header>
+  <div id="hint"></div>
+  <div id="game"><canvas id="gl"></canvas></div>
+  <div id="dead"><div><b>Тупик</b><span id="dead-text"></span></div><button id="dead-undo">Отменить ход</button></div>
+  <footer>
+    <button id="btn-undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Отмена</button>
+    <button id="btn-reset"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>Заново</button>
+    <button id="btn-hint"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>Подсказка</button>
+  </footer>
+  <div id="overlay"><div class="card" id="card"></div></div>
+  <div id="toast" class="hide"></div>
+</div>
+<!-- three.js 0.185.1, вендорен файлом (CJS-сборка + шим exports → window.THREE). CDN не используется. -->
+<script>var module = { exports: {} }; var exports = module.exports;</script>
+<script src="vendor/three.cjs"></script>
+<script>window.THREE = module.exports; module = undefined; exports = undefined;</script>
+<script>
+'use strict';
+{ // весь код в блоке: three.cjs объявляет сотни глобальных const, одноимённые объявления на верхнем уровне упали бы
+/* ЯДРО */
+// ---------------------------------------------------------------------------
+// «Клапаны» v0.5 «Подковы» — ядро правил. Исполняется и игрой, и sim.mjs/test.mjs (core-load.mjs вырезает этот блок).
+//
+// Поле: прозрачные подковы (дуга 270°, разрыв 90°) с цветным песком и банки внизу. Песок в подкове — цепочка доз
+// вдоль трубки от конца E0 к концу E1, до 6 доз (6 ячеек по 45°). Цвета не смешиваются, порядок вдоль трубки не меняется.
+// Подкова крутится щелчками по 45° (8 положений o): драг — в любую сторону, тап — щелчок по часовой.
+//
+// Углы θ — от дна по часовой на экране (0 — низ, 90 — левый бок, 180 — верх, 270 — правый бок).
+// Концы подковы стоят на полушагах: E0 на θ = −22,5° + 45°·o, E1 — на 270° дальше. Поэтому в каждом положении ровно
+// один конец стоит в одной из четырёх «точек подключения» подковы:
+//   o = 0: E0 в BR (низ-право, −22,5°)  1: E0 в BL (низ-лево, 22,5°)  2: E1 в BR  3: E1 в BL   — выпуски: конец — нижняя точка трубки;
+//   o = 4: E0 в TL (верх-лево, 157,5°)  5: E0 в TR (верх-право, 202,5°) 6: E1 в TL  7: E1 в TR — входы: конец сверху, цепочка лежит на дне.
+// Разрыв ровно внизу (оба конца на одной высоте) при разрыве 90° и шаге 45° с концами на полушагах не встречается:
+// нижний конец всегда один. Почему полушаги: при концах на целых шагах сыпать можно только строго со дна — один выпуск
+// на подкову, и из неё все цвета шли бы в одно место (DESIGN.md, v0.5).
+//
+// Клапан неподвижен: соединяет выпуск подковы (BL/BR) трубкой с банкой или со входом (TL/TR) подковы ниже. Цвет клапана —
+// что он пропускает ('' — прозрачный, любой цвет).
+//   • Пересыпание — по щелчку: щёлкнувшая подкова встала нижним концом в клапан — сыплет она; или щёлкнувшая подкова
+//     подвела свой конец ко входу клапана, в котором уже стоит конец подковы сверху — сыплет та, верхняя.
+//   • Проходит одна порция: доза за дозой, пока у конца тот же цвет, клапан его пропускает и приёмник берёт.
+//     Первая доза чужого цвета запирает выход, остальное стоит.
+//   • Банка берёт только свой цвет, до полной. Подкова берёт, если её конец стоит во входе этого клапана и есть место:
+//     песок съезжает по трубке и ложится к концу её цепочки со стороны входа.
+//   • Замок на подкове: не крутится, пока не насыпана банка цвета замка. Цель — насыпать все банки, песка ровно столько.
+// Тупик — солвер (положения × цепочки × банки) не видит ни одной победной последовательности; причину ищет deadReason.
+// ---------------------------------------------------------------------------
+const CFG = {
+  RING_CAP: 6,          // доз в подкове: дуга 270° = 6 ячеек по 45°
+  POS: 8,               // положений подковы, щелчок — 45°
+  RING_R: 1.0,          // радиус осевой линии подковы, мировые единицы
+  TUBE_R: 0.2,          // радиус трубки
+  RING_GAP: 0.06,       // минимальный зазор между трубками соседних подков
+  PIPE_R: 0.07,         // радиус трубки клапана (проверка раскладки)
+  PIPE_DROP: 0.2,       // трубка клапана сначала уходит вниз на столько, потом наклонно к приёмнику
+  JAR_W: 1.1,           // ширина банки (внешняя)
+  JAR_DOSE_H: 0.24,     // высота одной дозы в банке
+  JAR_FLOOR: -1.5,      // y дна банок — все банки стоят на одной полке
+  FUNNEL_W: 1.0,        // ширина воронки над банкой
+  FUNNEL_H: 0.32,       // высота воронки над горлом
+  CLICK_MS: 130,        // щелчок подковы (анимация тапа; ядро не зависит)
+  POUR_MS: 320,         // пересыпание одной дозы, мс
+  VALVE_MS: 150,        // вентиль открывается до начала струйки, мс
+  SOLVE_LIMIT: 400000,  // предел состояний перебора
+};
+const SPOT_DEG = { BR: -22.5, BL: 22.5, TL: 157.5, TR: 202.5 };   // точки подключения подковы (θ от дна по часовой)
+const OUTLET = { BL: true, BR: true };
+// Какой конец в какой точке при положении o: e — 0 (E0) или 1 (E1).
+const END_AT = [{ e: 0, spot: 'BR' }, { e: 0, spot: 'BL' }, { e: 1, spot: 'BR' }, { e: 1, spot: 'BL' },
+                { e: 0, spot: 'TL' }, { e: 0, spot: 'TR' }, { e: 1, spot: 'TL' }, { e: 1, spot: 'TR' }];
+
+// Цвета песка: код → имена для причин и подсказок, hex для рендера, значок для банки (не только цветом, §9).
+const COLORS = {
+  b: { hex: '#2ec5f5', nom: 'голубой', dat: 'голубому', acc: 'голубую', fem: 'голубая', gen: 'голубой', sym: 'drop'  },
+  p: { hex: '#ff4fa8', nom: 'розовый', dat: 'розовому', acc: 'розовую', fem: 'розовая', gen: 'розовой', sym: 'heart' },
+  o: { hex: '#ff8a1c', nom: 'оранжевый', dat: 'оранжевому', acc: 'оранжевую', fem: 'оранжевая', gen: 'оранжевой', sym: 'star' },
+  v: { hex: '#9a5cff', nom: 'фиолетовый', dat: 'фиолетовому', acc: 'фиолетовую', fem: 'фиолетовая', gen: 'фиолетовой', sym: 'moon' },
+  y: { hex: '#ffd21f', nom: 'жёлтый', dat: 'жёлтому', acc: 'жёлтую', fem: 'жёлтая', gen: 'жёлтой', sym: 'sun' },
+  g: { hex: '#3fd46a', nom: 'зелёный', dat: 'зелёному', acc: 'зелёную', fem: 'зелёная', gen: 'зелёной', sym: 'leaf' },
+};
+const cap1 = (t) => t[0].toUpperCase() + t.slice(1);
+
+// Детерминированный генератор (PROTO-BASE §5). Math.random() не используется.
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Уровни — декларативная таблица.
+//   Подкова: id, центр (x, y), fill — дозы от конца E0 к E1, o — стартовое положение (0..7), lock — цвет банки, снимающей замок.
+//   Банка: id, цвет c, объём cap, x (стоит на полке).
+//   Клапан: from — подкова, at — её выпуск (BL/BR), to — банка или подкова, in — вход подковы-приёмника (TL/TR), c — цвет ('' — прозрачный).
+// Порядок подков = номера ходов: ход m = 2·подкова + (0 — по часовой, 1 — против).
+const LEVELS = [
+  // 1. один конец в клапан своего цвета: тап — щелчок по часовой, нижний конец встаёт в розовый клапан
+  { n: 1, name: 'Конец в клапан', hint: 'Тапни по подкове — она щёлкнет по часовой',
+    rings: [{ id: 'A', x: 0, y: 1.7, fill: 'pp', o: 7 }],
+    jars:  [{ id: 'jp', c: 'p', cap: 2, x: 0.55 }],
+    valves: [{ id: 'v1', from: 'A', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 2. второй конец: у одного конца голубой, у другого розовый — каждый в свой клапан
+  { n: 2, name: 'Другой конец', hint: 'С каждого конца — свой цвет',
+    rings: [{ id: 'A', x: 0, y: 1.7, fill: 'bbpp', o: 0 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -0.6 }, { id: 'jp', c: 'p', cap: 2, x: 0.6 }],
+    valves: [{ id: 'v1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'v2', from: 'A', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 3. первое «ага»: короткий путь (по часовой) ставит голубой конец в прозрачный клапан — он уходит в перевалку B, откуда голубому дороги нет.
+  //    Верно: начать с другого конца — оранжевый в перевалку (против часовой), или сперва отвести вход B
+  { n: 3, name: 'С какого конца', hint: '',
+    rings: [{ id: 'A', x: -0.6, y: 4.3, fill: 'bpbo', o: 7 }, { id: 'B', x: 0.166, y: 1.7, fill: '', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.65 }, { id: 'jo', c: 'o', cap: 1, x: -0.25 }, { id: 'jp', c: 'p', cap: 1, x: 0.95 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 4. подкова под подковой: два клапана между ними (розовый и прозрачный); нижняя подставляет конец во вход — передышка без тупиков
+  { n: 4, name: 'Подставь конец', hint: 'Нижняя подкова примет песок, если её конец во входе клапана',
+    rings: [{ id: 'A', x: 0, y: 4.3, fill: 'bpp', o: 1 }, { id: 'B', x: 0, y: 1.7, fill: '', o: 5 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 1, x: -0.6 }, { id: 'jp', c: 'p', cap: 2, x: 0.6 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TL', c: 'p' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TR', c: '' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 5. развилка: из A голубой клапан ведёт в B (голубая и оранжевая банки), прозрачный — в C (оранжевая и розовая); голубой в C — тупик
+  { n: 5, name: 'Развилка', hint: '',
+    rings: [{ id: 'A', x: 0, y: 4.9, fill: 'bpo', o: 4 }, { id: 'B', x: -1.35, y: 1.8, fill: '', o: 7 }, { id: 'C', x: 1.35, y: 1.8, fill: '', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 1, x: -1.75 }, { id: 'jo', c: 'o', cap: 1, x: 0 }, { id: 'jp', c: 'p', cap: 1, x: 1.75 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TR', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'C', in: 'TL', c: '' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jo', c: 'o' },
+             { id: 'vC1', from: 'C', at: 'BL', to: 'jo', c: 'o' }, { id: 'vC2', from: 'C', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 6. общий проход: A и C сыплют в одну перевалку B через её два входа; голубой из A — только прямо в банку
+  { n: 6, name: 'Общий проход', hint: '',
+    rings: [{ id: 'A', x: -1.3, y: 4.5, fill: 'bpb', o: 5 }, { id: 'C', x: 1.3, y: 4.5, fill: 'oo', o: 6 }, { id: 'B', x: 0, y: 1.8, fill: '', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.75 }, { id: 'jo', c: 'o', cap: 2, x: -0.45 }, { id: 'jp', c: 'p', cap: 1, x: 0.75 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
+             { id: 'vC2', from: 'C', at: 'BL', to: 'B', in: 'TR', c: '' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+
+  // 7. замок: A не крутится, пока не насыпана оранжевая банка — сначала опустошить конец перевалки B
+  { n: 7, name: 'Замок', hint: '',
+    rings: [{ id: 'A', x: -0.6, y: 4.3, fill: 'bppb', o: 5, lock: 'o' }, { id: 'B', x: 0.166, y: 1.7, fill: 'po', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.65 }, { id: 'jo', c: 'o', cap: 1, x: -0.25 }, { id: 'jp', c: 'p', cap: 3, x: 0.95 }],
+    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
+             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+];
+
+// ---- геометрия (общая для рендера и проверки раскладки) ----
+function ringById(L, id){ return L.rings.find(r => r.id === id); }
+function jarById(L, id){ return L.jars.find(j => j.id === id); }
+function ringIndex(L, id){ return L.rings.findIndex(r => r.id === id); }
+function jarIndex(L, id){ return L.jars.findIndex(j => j.id === id); }
+function jarHeight(cap){ return cap * CFG.JAR_DOSE_H + 0.3; }
+function funnelTop(J){ return CFG.JAR_FLOOR + jarHeight(J.cap) + CFG.FUNNEL_H; }
+function posNorm(k){ return ((k % CFG.POS) + CFG.POS) % CFG.POS; }
+function ringCap(L, ri){ return L.rings[ri].cap || CFG.RING_CAP; }
+const DEG = Math.PI / 180;
+// Точка на осевой линии подковы под углом θ (градусы от дна по часовой).
+function rimAt(r, deg){ return { x: r.x - CFG.RING_R * Math.sin(deg * DEG), y: r.y - CFG.RING_R * Math.cos(deg * DEG) }; }
+function spotPos(r, spot){ return rimAt(r, SPOT_DEG[spot]); }
+// Угол конца e подковы в положении o.
+function endDeg(o, e){ return -22.5 + 45 * o + (e ? 270 : 0); }
+// Клапаны уровня: что на выпуске, что на входе.
+function valveAt(L, ri, spot){ const id = L.rings[ri].id; return L.valves.find(v => v.from === id && v.at === spot) || null; }
+function inletValve(L, ri, spot){ const id = L.rings[ri].id; return L.valves.find(v => v.to === id && v.in === spot) || null; }
+// Трубка клапана: от выпуска вниз, потом наклонно к приёмнику, потом вниз в воронку банки или во вход подковы.
+function valvePath(L, v){
+  const r = ringById(L, v.from), p0 = spotPos(r, v.at), J = jarById(L, v.to);
+  let tx, ty;
+  if (J){ ty = funnelTop(J); tx = Math.abs(p0.x - J.x) <= CFG.FUNNEL_W / 2 - 0.14 ? p0.x : J.x; }
+  else { const q = spotPos(ringById(L, v.to), v.in); tx = q.x; ty = q.y; }
+  if (Math.abs(tx - p0.x) < 0.01) return [p0, { x: p0.x, y: ty }];
+  return [p0, { x: p0.x, y: p0.y - CFG.PIPE_DROP }, { x: tx, y: ty + CFG.PIPE_DROP }, { x: tx, y: ty }];
+}
+// Куда съезжает цепочка из n доз в положении o (ячейка s стоит на θ = 45°·(o + s)): сумма высот минимальна.
+// При равенстве — ближе к тому месту, где была (prev). Ядру это не нужно (сыпется всегда с нижнего конца), рендер и тест — пользуются.
+function restOffset(o, n, prev){
+  const cap = CFG.RING_CAP; let best = 0, bv = Infinity;
+  for (let p = 0; p <= cap - n; p++){
+    let v = 0; for (let j = 0; j < n; j++) v -= Math.cos(45 * (o + p + j) * DEG);
+    const better = v < bv - 1e-9 || (Math.abs(v - bv) <= 1e-9 && prev !== undefined && Math.abs(p - prev) < Math.abs(best - prev));
+    if (better){ bv = v; best = p; }
+  }
+  return best;
+}
+
+// Проверка раскладки уровня. Возвращает список ошибок.
+function layoutErrors(L){
+  const out = [], R = CFG.RING_R, T = CFG.TUBE_R;
+  L.valves = L.valves || [];
+  for (let i = 0; i < L.rings.length; i++) for (let k = i + 1; k < L.rings.length; k++){
+    const a = L.rings[i], b = L.rings[k], d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d < 2 * (R + T) + CFG.RING_GAP) out.push('подковы ' + a.id + ' и ' + b.id + ' задевают друг друга (d=' + d.toFixed(2) + ')');
+  }
+  const top = Math.max(...L.jars.map(funnelTop));
+  for (const r of L.rings) if (r.y - R - T < top + 0.12) out.push('подкова ' + r.id + ' опускается в воронки банок');
+  for (let i = 0; i < L.jars.length; i++) for (let k = i + 1; k < L.jars.length; k++)
+    if (Math.abs(L.jars[i].x - L.jars[k].x) < Math.max(CFG.JAR_W, CFG.FUNNEL_W) + 0.06) out.push('банки ' + L.jars[i].id + ' и ' + L.jars[k].id + ' налезают');
+  const used = new Set(), paths = [];
+  for (const v of L.valves){
+    const fi = ringIndex(L, v.from); if (fi < 0){ out.push('клапан ' + v.id + ': нет подковы ' + v.from); continue; }
+    if (!OUTLET[v.at]) out.push('клапан ' + v.id + ': выпуск только BL/BR, а не ' + v.at);
+    const key = v.from + v.at; if (used.has(key)) out.push('клапан ' + v.id + ': на выпуске ' + key + ' уже есть клапан'); used.add(key);
+    const J = jarById(L, v.to), ti = ringIndex(L, v.to);
+    if (!J && ti < 0){ out.push('клапан ' + v.id + ': нет приёмника ' + v.to); continue; }
+    if (v.c && !COLORS[v.c]) out.push('клапан ' + v.id + ': цвет ' + v.c);
+    if (J && v.c && v.c !== J.c) out.push('клапан ' + v.id + ' цвета ' + v.c + ' над банкой ' + J.c + ' — ничего не пройдёт');
+    if (ti >= 0){
+      if (ti === fi) out.push('клапан ' + v.id + ' ведёт в свою же подкову');
+      if (!(v.in === 'TL' || v.in === 'TR')) out.push('клапан ' + v.id + ': вход подковы только TL/TR');
+      const ik = v.to + v.in; if (used.has(ik)) out.push('клапан ' + v.id + ': вход ' + ik + ' занят'); used.add(ik);
+    }
+    const P = valvePath(L, v); paths.push({ v, P });
+    if (P[P.length - 1].y > P[0].y - 0.3) out.push('клапан ' + v.id + ': приёмник не ниже выпуска');
+    if (P.length === 4){ const dx = Math.abs(P[2].x - P[1].x), dy = P[1].y - P[2].y; if (dy < 0.75 * dx) out.push('клапан ' + v.id + ': трубка слишком полога (песок не съедет)'); }
+    if (J && Math.abs(P[P.length - 1].x - J.x) > CFG.FUNNEL_W / 2 - 0.1) out.push('клапан ' + v.id + ': мимо воронки банки');
+    // трубка не проходит сквозь чужие подковы и банки
+    const len = P.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - P[i].x, p.y - P[i].y), 0);
+    for (let i = 1; i < P.length; i++){
+      const a = P[i - 1], b = P[i], n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.04);
+      for (let q = 0; q <= n; q++){
+        const x = a.x + (b.x - a.x) * q / n, y = a.y + (b.y - a.y) * q / n;
+        const along = P.slice(1, i).reduce((s, p, j) => s + Math.hypot(p.x - P[j].x, p.y - P[j].y), 0) + Math.hypot(x - a.x, y - a.y);
+        L.rings.forEach((r, ri) => {
+          if (ri === fi && along < 0.42) return; if (ri === ti && len - along < 0.42) return;
+          const d = Math.abs(Math.hypot(x - r.x, y - r.y) - R);
+          if (d < T + CFG.PIPE_R + 0.02) out.push('клапан ' + v.id + ': трубка задевает подкову ' + r.id);
+        });
+        for (const jj of L.jars) if (jj !== J && Math.abs(x - jj.x) < Math.max(CFG.JAR_W, CFG.FUNNEL_W) / 2 + CFG.PIPE_R && y < funnelTop(jj)) out.push('клапан ' + v.id + ': трубка проходит сквозь банку ' + jj.id);
+      }
+    }
+  }
+  // трубки не пересекаются
+  const segX = (a, b, c, d) => { const o = (p, q, r) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)); return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0; };
+  for (let i = 0; i < paths.length; i++) for (let k = i + 1; k < paths.length; k++){
+    const A = paths[i].P, B = paths[k].P; let hit = false;
+    for (let s = 1; s < A.length; s++) for (let t = 1; t < B.length; t++) if (segX(A[s - 1], A[s], B[t - 1], B[t])) hit = true;
+    if (hit) out.push('трубки клапанов ' + paths[i].v.id + ' и ' + paths[k].v.id + ' пересекаются');
+  }
+  for (const j of L.jars) if (!(j.cap >= 1)) out.push('банка ' + j.id + ': объём ' + j.cap);
+  for (const c of new Set([...L.jars.map(j => j.c), ...L.rings.flatMap(r => [...r.fill])])){
+    const need = L.jars.filter(j => j.c === c).reduce((s, j) => s + j.cap, 0);
+    const have = L.rings.reduce((s, r) => s + [...r.fill].filter(x => x === c).length, 0);
+    if (have !== need) out.push('песка ' + c + ' не столько, сколько нужно банкам (' + have + ' ≠ ' + need + ')');
+  }
+  L.rings.forEach((r, ri) => {
+    if (r.fill.length > ringCap(L, ri)) out.push('подкова ' + r.id + ' переполнена');
+    if (!(r.o >= 0 && r.o < CFG.POS)) out.push('подкова ' + r.id + ': стартовое положение ' + r.o);
+    if (r.lock && !L.jars.some(j => j.c === r.lock)) out.push('подкова ' + r.id + ': замок цвета без банки');
+  });
+  // на старте ни один конец не стоит в открытом клапане (иначе песок висел бы над открытым выпуском)
+  if (!out.length){ const s = createState(-1, L); L.rings.forEach((r, ri) => { const f = flowFor(s, ri, s.ang[ri]); if (f.code === 'ok') out.push('подкова ' + r.id + ': на старте конец уже стоит в открытом клапане ' + f.valve); }); }
+  return out;
+}
+
+// ---- состояние ----
+function createState(li, def){
+  const L = def || LEVELS[li]; L.valves = L.valves || [];
+  return { li, L, rings: L.rings.map(r => [...r.fill]), ang: L.rings.map(r => posNorm(r.o || 0)), jars: L.jars.map(() => 0), moves: 0, hist: [] };
+}
+function cloneState(s){ return { li: s.li, L: s.L, rings: s.rings.map(r => r.slice()), ang: s.ang.slice(), jars: s.jars.slice(), moves: s.moves, hist: s.hist.slice() }; }
+function stateKey(s){ return s.rings.map(r => r.join('')).join('|') + '@' + s.ang.join('') + '#' + s.jars.join(','); }
+function jarFull(s, ji){ return s.jars[ji] >= s.L.jars[ji].cap; }
+function lockOpen(s, color){ return s.L.jars.some((j, ji) => j.c === color && jarFull(s, ji)); }
+function ringLocked(s, ri){ const c = s.L.rings[ri].lock; return !!c && !lockOpen(s, c); }
+const moveOf = (ri, dir) => ri * 2 + (dir > 0 ? 0 : 1);
+function endColor(arr, e){ return arr.length ? (e ? arr[arr.length - 1] : arr[0]) : null; }
+
+// Пересыпание через клапан v из подковы si (положение so). recv — {ri, o}: положение подковы-приёмника, если она только что щёлкнула.
+// code: ok | empty | wrongValve | wrongJar | jarFull | closedBelow | ringFull
+function pourVia(s, v, si, so, recv, base){
+  const L = s.L, src = s.rings[si], E = END_AT[so], n = src.length;
+  const out = { ...base, src: si, srcId: L.rings[si].id, srcEnd: E.e, spot: v.at, valve: v.id, vc: v.c || '', to: v.to, color: null, amount: 0 };
+  if (!n) return { ...out, code: 'empty' };
+  const c = endColor(src, E.e); out.color = c;
+  if (v.c && v.c !== c) return { ...out, code: 'wrongValve' };
+  let run = 0; while (run < n && src[E.e ? n - 1 - run : run] === c) run++;
+  let space;
+  const ji = jarIndex(L, v.to);
+  if (ji >= 0){
+    const J = L.jars[ji];
+    if (J.c !== c) return { ...out, code: 'wrongJar', jarColor: J.c };
+    space = J.cap - s.jars[ji]; if (space <= 0) return { ...out, code: 'jarFull' };
+    out.ji = ji;
+  } else {
+    const ti = ringIndex(L, v.to), to = recv && recv.ri === ti ? recv.o : s.ang[ti], TE = END_AT[to];
+    out.ti = ti;
+    if (TE.spot !== v.in) return { ...out, code: 'closedBelow' };
+    space = ringCap(L, ti) - s.rings[ti].length; if (space <= 0) return { ...out, code: 'ringFull' };
+    out.toEnd = TE.e;
+  }
+  return { ...out, code: 'ok', amount: Math.min(run, space), run };
+}
+// Что случится, когда подкова ri встанет в положение o. code: ok (сыплется) | rest (ничего) | closed (нижний конец — без клапана) | locked | …(pourVia)
+function flowFor(s, ri, o){
+  const L = s.L, E = END_AT[posNorm(o)], base = { ri, from: L.rings[ri].id, k: posNorm(o), end: E.e, at: E.spot };
+  if (OUTLET[E.spot]){
+    const v = valveAt(L, ri, E.spot);
+    if (!v) return { ...base, code: 'closed', color: endColor(s.rings[ri], E.e), amount: 0 };
+    return pourVia(s, v, ri, posNorm(o), null, base);
+  }
+  const v = inletValve(L, ri, E.spot);
+  if (!v) return { ...base, code: 'rest', amount: 0 };
+  const si = ringIndex(L, v.from);
+  if (END_AT[s.ang[si]].spot !== v.at) return { ...base, code: 'rest', amount: 0, inlet: v.id };
+  return pourVia(s, v, si, s.ang[si], { ri, o: posNorm(o) }, { ...base, feed: true });
+}
+// Ход m: щелчок подковы m>>1 по часовой (m чётный) или против. Возвращает положение после щелчка и что пересыплется.
+function moveInfo(s, m){
+  const ri = m >> 1, dir = (m & 1) ? -1 : 1;
+  if (ri >= s.L.rings.length) return { m, ri, dir, code: 'none', amount: 0 };
+  if (ringLocked(s, ri)) return { m, ri, dir, from: s.L.rings[ri].id, code: 'locked', lock: s.L.rings[ri].lock, k: s.ang[ri], amount: 0 };
+  return { m, dir, ...flowFor(s, ri, s.ang[ri] + dir) };
+}
+function legalMoves(s){ const out = []; for (let ri = 0; ri < s.L.rings.length; ri++) if (!ringLocked(s, ri)) out.push(ri * 2, ri * 2 + 1); return out; }
+function applyMove(s, m){
+  const info = moveInfo(s, m); if (info.code === 'locked' || info.code === 'none') return s;
+  const n = cloneState(s), L = s.L;
+  n.hist.push({ rings: s.rings, ang: s.ang, jars: s.jars });
+  n.ang[info.ri] = info.k;
+  if (info.code === 'ok'){
+    const src = n.rings[info.src];
+    if (info.srcEnd) src.splice(src.length - info.amount, info.amount); else src.splice(0, info.amount);   // уходит только с конца в клапане
+    if (info.ji !== undefined) n.jars[info.ji] += info.amount;
+    else { const dst = n.rings[info.ti]; for (let q = 0; q < info.amount; q++){ if (info.toEnd) dst.push(info.color); else dst.unshift(info.color); } }
+  }
+  n.moves++;
+  return n;
+}
+function undoMove(s){ if (!s.hist.length) return s; const n = cloneState(s), h = n.hist.pop(); n.rings = h.rings.map(r => r.slice()); n.ang = h.ang.slice(); n.jars = h.jars.slice(); n.moves--; return n; }
+function isWin(s){ return s.jars.every((f, ji) => f >= s.L.jars[ji].cap); }
+function jarDoses(s){ return s.jars.reduce((a, b) => a + b, 0); }
+
+// Солвер: поиск в ширину по «положения × цепочки × банки», кратчайшая победная последовательность щелчков или null (тупик).
+function solve(s){
+  if (isWin(s)) return [];
+  const start = { rings: s.rings.map(r => r.slice()), ang: s.ang.slice(), jars: s.jars.slice(), L: s.L, hist: [], moves: 0 };
+  const seen = new Map([[stateKey(start), null]]), q = [start];
+  for (let qi = 0; qi < q.length && seen.size < CFG.SOLVE_LIMIT; qi++){
+    const cur = q[qi], ck = stateKey(cur);
+    for (const m of legalMoves(cur)){
+      const nx = applyMove(cur, m); nx.hist = []; const k = stateKey(nx);
+      if (seen.has(k)) continue;
+      seen.set(k, { from: ck, move: m });
+      if (isWin(nx)){ const path = []; let at = k; while (seen.get(at)){ path.push(seen.get(at).move); at = seen.get(at).from; } return path.reverse(); }
+      q.push(nx);
+    }
+  }
+  return null;
+}
+// Полный граф уровня: сколько состояний, сколько тупиков; good — множество состояний, откуда победа достижима.
+const GRAPH = new WeakMap();
+function graphOf(L){
+  let G0 = GRAPH.get(L); if (G0) return G0;
+  const s = createState(-1, L), seen = new Map(), q = [s]; seen.set(stateKey(s), { win: isWin(s), next: [] });
+  for (let qi = 0; qi < q.length && seen.size < CFG.SOLVE_LIMIT; qi++){
+    const cur = q[qi], ck = stateKey(cur);
+    for (const m of legalMoves(cur)){
+      const nx = applyMove(cur, m); nx.hist = []; const k = stateKey(nx);
+      seen.get(ck).next.push(k);
+      if (!seen.has(k)){ seen.set(k, { win: isWin(nx), next: [] }); q.push(nx); }
+    }
+  }
+  const prev = new Map(); for (const [k, v] of seen) for (const x of v.next){ if (!prev.has(x)) prev.set(x, []); prev.get(x).push(k); }
+  const good = new Set(), st = [];
+  for (const [k, v] of seen) if (v.win){ good.add(k); st.push(k); }
+  while (st.length){ const k = st.pop(); for (const p of (prev.get(k) || [])) if (!good.has(p)){ good.add(p); st.push(p); } }
+  G0 = { seen, good }; GRAPH.set(L, G0); return G0;
+}
+function isDead(s){ if (isWin(s)) return false; const g = graphOf(s.L), k = stateKey(s); if (g.seen.has(k)) return !g.good.has(k); return solve(s) === null; }
+function isLose(s){ return isDead(s); }
+function analyze(li){
+  const s = typeof li === 'object' ? (li.rings && li.ang ? li : createState(-1, li)) : createState(li);
+  const g = graphOf(s.L), sol = solve(s);
+  const firstDead = legalMoves(s).filter(m => !g.good.has(stateKey(applyMove(s, m))));
+  return { states: g.seen.size, dead: g.seen.size - g.good.size, wins: [...g.seen.values()].filter(v => v.win).length,
+    par: sol ? sol.length : -1, sol, firstMoves: legalMoves(s).length, firstDead, solvable: g.good.has(stateKey(s)) };
+}
+// Крутить одну подкову в одну сторону от старта: на каком щелчке тупик (0 — не наступает за полный оборот).
+function spinTrap(s, ri, dir){
+  let t = s;
+  for (let n = 1; n <= CFG.POS; n++){ t = applyMove(t, moveOf(ri, dir)); if (isWin(t)) return { dead: 0, win: n }; if (isDead(t)) return { dead: n, reason: deadReason(t) }; }
+  return { dead: 0 };
+}
+
+// ---- причина тупика человеческими словами ----
+// Есть ли дорога из подковы ri до банки цвета c через клапаны, которые его пропускают.
+function routeTo(L, ri, c, seen){
+  seen = seen || new Set(); if (seen.has(ri)) return false; seen.add(ri);
+  return L.valves.some(v => v.from === L.rings[ri].id && (!v.c || v.c === c) &&
+    (jarById(L, v.to) ? jarById(L, v.to).c === c : routeTo(L, ringIndex(L, v.to), c, seen)));
+}
+const ringName = (L, ri) => 'подкову ' + L.rings[ri].id;
+function valveWord(c){ return c ? COLORS[c].nom : 'прозрачный'; }
+function deadReason(s){
+  if (isWin(s) || !isDead(s)) return null;
+  const L = s.L;
+  // 1) нужный цвет попал туда, откуда к своей банке дороги нет
+  for (const [ji, J] of L.jars.entries()){
+    if (jarFull(s, ji)) continue; const C = COLORS[J.c];
+    for (let ri = 0; ri < L.rings.length; ri++) if (s.rings[ri].includes(J.c) && !routeTo(L, ri, J.c))
+      return cap1(C.nom) + ' попал в ' + ringName(L, ri) + ', а из неё ' + C.dat + ' не попасть в ' + C.acc + ' банку.';
+  }
+  // 2) подкова заперта: ни с одного конца ничего не уйдёт туда, откуда есть дорога
+  for (let ri = 0; ri < L.rings.length; ri++){
+    const arr = s.rings[ri]; if (!arr.length) continue;
+    const outs = L.valves.filter(v => v.from === L.rings[ri].id);
+    const can = (c) => outs.some(v => (!v.c || v.c === c) && (jarById(L, v.to) ? jarById(L, v.to).c === c && !jarFull(s, jarIndex(L, v.to))
+      : s.rings[ringIndex(L, v.to)].length < ringCap(L, ringIndex(L, v.to)) && routeTo(L, ringIndex(L, v.to), c)));
+    const e0 = arr[0], e1 = arr[arr.length - 1];
+    if (can(e0) || can(e1)) continue;
+    if (!outs.length) continue;
+    const vs = [...new Set(outs.map(v => v.c))];
+    const ends = e0 === e1 ? 'У обоих концов подковы ' + L.rings[ri].id + ' ' + COLORS[e0].nom : 'У концов подковы ' + L.rings[ri].id + ' ' + COLORS[e0].nom + ' и ' + COLORS[e1].nom;
+    if (vs.every(c => c)) return ends + ', а ' + (vs.length > 1 ? 'клапаны ' + vs.map(valveWord).join(' и ') : 'клапан ' + valveWord(vs[0])) + ' — не пропустит.';
+    const full = outs.find(v => !jarById(L, v.to) && s.rings[ringIndex(L, v.to)].length >= ringCap(L, ringIndex(L, v.to)));
+    if (full) return ends + ', а подкова ' + full.to + ' под ней полна.';
+    return ends + ', а дальше им дороги нет.';
+  }
+  // 3) нужный цвет зажат в середине цепочки
+  for (const [ji, J] of L.jars.entries()){
+    if (jarFull(s, ji)) continue; const C = COLORS[J.c];
+    for (let ri = 0; ri < L.rings.length; ri++){ const a = s.rings[ri], i = a.indexOf(J.c);
+      if (i > 0 && a.lastIndexOf(J.c) < a.length - 1) return cap1(C.nom) + ' зажат в середине ' + 'подковы ' + L.rings[ri].id + ': то, что по краям, снять уже некуда.'; }
+  }
+  const lk = L.rings.findIndex((r, ri) => ringLocked(s, ri));
+  if (lk >= 0) return 'Подкова ' + L.rings[lk].id + ' под замком, а ' + COLORS[L.rings[lk].lock].acc + ' банку уже не насыпать.';
+  return 'Отсюда банки уже не насыпать: что ни сыпь — дальше застрянет.';
+}
+
+// Боты для симулятора (PROTO-BASE §6).
+// Случайный — любой щелчок. «Ближайшая банка» (жадный) — крутит ту подкову и в ту сторону, где банка пополнится
+// за меньше щелчков (при равенстве — по часовой); если банку не достать — к ближайшему пересыпанию; «только по часовой» — то же, только тапами.
+function randomRun(li, seed, def){
+  const rnd = mulberry32(seed); let s = createState(li, def);
+  for (let k = 0; k < 100 && !isWin(s); k++){ const m = legalMoves(s); if (!m.length) break; s = applyMove(s, m[Math.floor(rnd() * m.length)]); }
+  return { win: isWin(s), moves: s.moves, dead: !isWin(s) };
+}
+function clicksTo(s, ri, dir, jarOnly){
+  let t = s;
+  for (let n = 1; n <= CFG.POS; n++){
+    const info = moveInfo(t, moveOf(ri, dir)); if (info.code === 'locked') return Infinity;
+    const nx = applyMove(t, moveOf(ri, dir));
+    if (jarDoses(nx) > jarDoses(t)) return n;
+    if (!jarOnly && info.code === 'ok') return n + 0.5;
+    t = nx;
+  }
+  return Infinity;
+}
+function botRun(li, dirs, def){
+  let s = createState(li, def); const path = [];
+  for (let step = 0; step < 80 && !isWin(s); step++){
+    let best = null, bn = Infinity;
+    for (const jarOnly of [true, false]){
+      for (let ri = 0; ri < s.L.rings.length; ri++) for (const d of dirs){ const n = clicksTo(s, ri, d, jarOnly); if (n < bn){ bn = n; best = moveOf(ri, d); } }
+      if (best !== null) break;
+    }
+    if (best === null){                                   // одной подковой ничего не пересыпать — подготовить другой: X на n щелчков, потом Y
+      for (let ri = 0; ri < s.L.rings.length; ri++) for (const d of dirs){ let t = s;
+        for (let n = 1; n <= CFG.POS; n++){ if (moveInfo(t, moveOf(ri, d)).code === 'locked') break; t = applyMove(t, moveOf(ri, d));
+          for (let rj = 0; rj < s.L.rings.length; rj++) if (rj !== ri) for (const d2 of dirs){ const k = clicksTo(t, rj, d2, false); if (n + k < bn){ bn = n + k; best = moveOf(ri, d); } } } }
+    }
+    if (best === null) return { win: false, moves: s.moves, path, stuck: true };
+    s = applyMove(s, best); path.push(best);
+    if (isDead(s)) return { win: false, moves: s.moves, path, trappedAt: s.moves, reason: deadReason(s) };
+  }
+  return { win: isWin(s), moves: s.moves, path, stuck: !isWin(s) };
+}
+function greedyRun(li, def){ return botRun(li, [1, -1], def); }
+function cwRun(li, def){ return botRun(li, [1], def); }
+/* КОНЕЦ ЯДРА */
+
+// ===========================================================================
+// Оболочка: экраны, ввод, 3D-сцена, анимации, звук, сейв, дебаг-хук. Время абсолютное (§4): now() = performance.now() + T.off.
+// ===========================================================================
+const NAME = 'klapany';
+const VIEW = {                 // визуальные параметры (ядро от них не зависит)
+  FOV: 30,                     // угол камеры по вертикали, градусы
+  TILT: 0.07,                  // камера чуть сверху
+  MARGIN_X: 0.3,               // поля кадра по бокам, мировые ед.
+  MARGIN_TOP: 0.3,             // поле сверху
+  MIN_W: 4.4,                  // минимальная ширина кадра в мировых ед.
+  SAND_R: 0.158,               // радиус песка внутри трубки (трубка 0.2)
+  TROUGH_W: 0.17,              // жёлоб клапана: полуширина снаружи (как трубка подковы; ближе 0,21 к чужим подковам дороги не подходят)
+  TROUGH_WI: 0.135,            // полуширина дна изнутри, разница — кромка-обводка
+  TROUGH_FILLET: 0.16,         // скругление изгибов жёлоба
+  CHEV_SPEED: 0.5,             // шевронов в секунду по жёлобу в покое
+  CHEV_FAST: 2.2,              // на дороге следующего щелчка и во время пересыпания
+  GLOW_W: 0.4,                 // полуширина ореола под жёлобом при подсветке
+  GRAIN_Z: -0.05,              // песчинки бегут по дну жёлоба
+  CLEAR_TROUGH: '#fbfaff', CLEAR_STRIPE: '#b9acf2', CLEAR_RIM: '#7a68c8',
+  WHEEL_D: 0.36,               // диаметр вентиля клапана
+  SHORT_ROUTE: 1.0,            // трубка клапана (valvePath) короче — вентиль сбоку на штоке, чтобы жёлоб был виден
+  WHEEL_SIDE_X: 0.36, WHEEL_SIDE_Y: 0.26,   // вентиль сбоку: наружу от подковы и ниже выпуска (зазор до соседей ≥ 0,01, qa проверено)
+  WHEEL_TURN: Math.PI / 2,     // поворот вентиля при открытии
+  WHEEL_BACK_MS: 170,          // вентиль закрывается
+  SLIDE_SPEED: 7,              // цепочка съезжает по трубке, ячеек в секунду
+  GRAIN_RATE: 150,             // песчинок в секунду в струйке
+  GRAIN_SPEED: 3.2,            // скорость песчинки по трубке клапана, ед./с
+  POOL_GRAINS: 360, POOL_DROPS: 140, POOL_CONF: 220, POOL_STARS: 48,
+  HEAP_H: 0.16,                // высота горки над краем песка в банке
+  LID_MS: 460,                 // крышка опускается и закручивается
+  UNLOCK_MS: 700,              // замок слетает
+  WIN_CARD_MS: 1900,           // от последней крышки до карточки победы (успевает праздник: волна банок, конфетти)
+  PICK_R: 1.55,                // попадание по подкове: до 1,55 радиуса от центра
+  TAP_PX: 10,                  // порог тап/драг
+  DPR_MAX: 2,
+  SHELF_H: 0.5,                // высота полки (модель сплющена по высоте)
+  SHELF_SINK: 0.03,            // банки чуть утоплены в полку
+  LID_HOVER: 1.1,              // откуда прилетает крышка (над горлом)
+  BG_TOP: '#c9b8ff', BG_BOTTOM: '#8b72e8', GLASS_TINT: '#f1ecff', CLEAR_VALVE: '#eef1ff',
+};
+const T0 = performance.now();
+const T = { off: 0 };
+const now = () => performance.now() + T.off;
+function log(kind, name, info){          // журнал [game] — одна строка на событие (§11)
+  console.log('[game] ' + JSON.stringify({ t: +((now() - T0) / 1000).toFixed(3), kind, name, info: info === undefined ? '' : String(info) }));
+}
+const PERF = {};                          // этапы старта, мс от начала скрипта
+function mark(name){ PERF[name] = Math.round(performance.now() - T0); log('event', 'perf.' + name, PERF[name] + 'ms'); }
+mark('script');
+
+const SAVE_KEY = NAME + '.v3';          // v0.5 «Подковы»: свой прогресс, не смешивается с v0.3 (.v1) и v0.4 (.v2)
+function loadSave(){ try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch (e) { return {}; } }
+function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(G.save)); } catch (e) {} }
+
+const G = {
+  s: null,              // состояние ядра (уже после хода)
+  view: null,           // что нарисовано (до конца пересыпания — старое состояние)
+  screen: 'menu',
+  save: Object.assign({ level: 0, muted: false, done: {} }, loadSave()),
+  pour: null,           // текущее пересыпание { info, t0, tA, tB, tEnd, path }
+  press: null,          // палец на подкове: { ri, acc (угол драга с последнего щелчка), drag, dir, clicks }
+  hint: null,           // подсказка: { m, until } — превью первого хода решения
+  spinDemo: 0,          // замер: все подковы крутятся непрерывно (bench)
+  fx: [],               // разовые эффекты по времени: крышки, замки
+  dead: null,           // причина тупика (строка) или null
+  ending: 0,            // когда показать карточку победы
+  timeScale: 1,
+  paused: false,
+};
+
+// --- звук: WebAudio-синтез без файлов, ленивый старт по первому жесту (§8) ---
+const Snd = {
+  ac: null, out: null, noise: null,
+  init(){
+    if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume(); return; }
+    try {
+      this.ac = new (window.AudioContext || window.webkitAudioContext)();
+      this.out = this.ac.createGain(); this.out.gain.value = 0.8; this.out.connect(this.ac.destination);
+      const len = this.ac.sampleRate, buf = this.ac.createBuffer(1, len, this.ac.sampleRate), d = buf.getChannelData(0), rnd = mulberry32(7);
+      for (let i = 0; i < len; i++) d[i] = rnd() * 2 - 1;
+      this.noise = buf;
+    } catch (e) { this.ac = null; }
+  },
+  ok(){ return this.ac && !G.save.muted; },
+  env(g, t, a, peak, dur){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); },
+  osc(type, f0, f1, t, dur, peak, a){
+    const o = this.ac.createOscillator(), g = this.ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    this.env(g, t, a || 0.005, peak, dur); o.connect(g).connect(this.out); o.start(t); o.stop(t + dur + 0.03);
+  },
+  noiseBurst(t, dur, peak, type, freq, q){
+    const s = this.ac.createBufferSource(), f = this.ac.createBiquadFilter(), g = this.ac.createGain();
+    s.buffer = this.noise; s.loop = true; s.loopStart = 0; f.type = type; f.frequency.value = freq; f.Q.value = q || 0.7;
+    this.env(g, t, 0.004, peak, dur); s.connect(f).connect(g).connect(this.out); s.start(t, (t * 7.31) % 0.9); s.stop(t + dur + 0.05);
+    return { s, f, g };
+  },
+  click(){ if (!this.ok()) return; const t = this.ac.currentTime;      // щелчок вентиля: металлический тик + короткий шорох
+    this.noiseBurst(t, 0.035, 0.35, 'highpass', 2500); this.osc('square', 1900, 1400, t, 0.03, 0.08); this.osc('triangle', 420, 300, t + 0.01, 0.06, 0.12); log('sound', 'click'); },
+  // шуршание песка: мягкий шум + россыпь коротких щелчков-песчинок; в банку — ниже и глуше по мере наполнения
+  sand(ms, toJar, fillFrac){ if (!this.ok()) return; const t = this.ac.currentTime, d = ms / 1000;
+    const n = this.noiseBurst(t, d + 0.15, 0.07, 'bandpass', toJar ? 2400 : 3200, 0.9);
+    n.f.frequency.setValueAtTime(toJar ? 3000 - 900 * fillFrac : 3400, t); n.f.frequency.linearRampToValueAtTime(toJar ? 2200 - 900 * fillFrac : 2800, t + d);
+    const rnd = mulberry32(Math.floor(fillFrac * 1000) + 11);
+    for (let tt = 0.02; tt < d; tt += 0.008 + rnd() * 0.02){
+      const s = this.ac.createBufferSource(), f = this.ac.createBiquadFilter(), g = this.ac.createGain();
+      s.buffer = this.noise; f.type = 'highpass'; f.frequency.value = 2500 + rnd() * 3500;
+      const p = 0.04 + rnd() * 0.09, at = t + tt; g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(p, at + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.012 + rnd() * 0.012);
+      s.connect(f).connect(g).connect(this.out); s.start(at, rnd() * 0.9); s.stop(at + 0.03);
+    }
+    log('sound', 'sand', Math.round(ms) + 'ms'); },
+  slide(){ if (!this.ok()) return; const t = this.ac.currentTime; this.noiseBurst(t, 0.22, 0.05, 'bandpass', 2600, 1.2); },   // цепочка съезжает по трубке
+  thud(){ if (!this.ok()) return; const t = this.ac.currentTime; this.noiseBurst(t, 0.09, 0.14, 'lowpass', 900); this.osc('sine', 180, 110, t, 0.08, 0.08); log('sound', 'thud'); },
+  ding(k){ if (!this.ok()) return; const t = this.ac.currentTime, f = 880 * Math.pow(2, [0, 4, 7, 12, 16][k % 5] / 12);   // закрытая банка звенит; следующая — выше
+    [[1, 0.22, 1.4], [2.76, 0.08, 0.8], [5.4, 0.05, 0.5], [0.5, 0.06, 1.0]].forEach(([m, p, d]) => this.osc('sine', f * m, f * m, t + 0.02, d, p, 0.003));
+    this.noiseBurst(t, 0.05, 0.12, 'highpass', 3000); log('sound', 'ding'); },
+  unlock(){ if (!this.ok()) return; const t = this.ac.currentTime; this.noiseBurst(t, 0.05, 0.3, 'bandpass', 1800, 3); this.osc('square', 300, 200, t, 0.05, 0.08);
+    [660, 990, 1320].forEach((f, i) => this.osc('sine', f, f, t + 0.08 + i * 0.07, 0.35, 0.1)); log('sound', 'unlock'); },
+  deny(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('square', 150, 130, t, 0.07, 0.07); this.osc('square', 150, 120, t + 0.1, 0.08, 0.07); log('sound', 'deny'); },
+  dead(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('sine', 420, 170, t, 0.45, 0.16); this.osc('triangle', 300, 120, t + 0.12, 0.4, 0.08); log('sound', 'dead'); },
+  win(){ if (!this.ok()) return; const t = this.ac.currentTime; [523, 659, 784, 1047, 1319].forEach((f, i) => { this.osc('sine', f, f, t + i * 0.09, 0.9, 0.12, 0.003); this.osc('sine', f * 2.76, f * 2.76, t + i * 0.09, 0.4, 0.03); }); log('sound', 'win'); },
+  // победа: тёплый аккорд нарастает, сверху россыпь колокольчиков, низкий «бум», шорох-блеск
+  fanfare(){ if (!this.ok()) return; const t = this.ac.currentTime;
+    this.osc('sine', 110, 55, t, 0.5, 0.22, 0.004); this.noiseBurst(t, 0.5, 0.08, 'lowpass', 500);
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { this.osc('triangle', f, f, t + 0.02, 1.9, 0.055, 0.12); this.osc('sine', f * 1.003, f * 1.003, t + 0.02, 1.9, 0.04, 0.15); });
+    [1046.5, 1318.5, 1568, 2093, 2637, 3136].forEach((f, i) => { this.osc('sine', f, f, t + 0.12 + i * 0.075, 0.7, 0.09, 0.003); this.osc('sine', f * 2.76, f * 2.76, t + 0.12 + i * 0.075, 0.25, 0.02, 0.002); });
+    const sh = this.noiseBurst(t + 0.1, 1.4, 0.035, 'highpass', 6500); sh.f.frequency.linearRampToValueAtTime(9000, t + 1.4);
+    log('sound', 'fanfare'); },
+  chime(k){ if (!this.ok()) return; const t = this.ac.currentTime, f = 1318.5 * Math.pow(2, [0, 4, 7, 12, 16][k % 5] / 12);   // банка подпрыгнула
+    this.osc('sine', f, f, t, 0.5, 0.07, 0.003); this.osc('sine', f * 2.01, f * 2.01, t, 0.2, 0.02, 0.002); },
+  ping(){ if (!this.ok()) return; const t = this.ac.currentTime;      // подкова опустела
+    this.osc('sine', 1568, 1568, t, 0.35, 0.05, 0.003); this.osc('sine', 2349, 2349, t + 0.07, 0.4, 0.04, 0.003); log('sound', 'ping'); },
+  ratchet(dir){ if (!this.ok()) return; const t = this.ac.currentTime;   // трещотка подковы: сухой тик, против часовой чуть ниже
+    this.noiseBurst(t, 0.016, 0.22, 'highpass', 3800); this.osc('square', dir > 0 ? 2500 : 2150, 1500, t, 0.018, 0.045); this.osc('triangle', dir > 0 ? 560 : 500, 380, t + 0.004, 0.035, 0.07); log('sound', 'ratchet'); },
+  tick(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('triangle', 900, 700, t, 0.04, 0.06); },
+};
+function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+// --- DOM, экраны (§6, §9, §11) ---
+const $ = (id) => document.getElementById(id);
+function goto(screen, payload){
+  G.screen = screen; log('screen', screen);
+  const ov = $('overlay'), card = $('card');
+  document.body.dataset.screen = screen;
+  ov.classList.toggle('win', screen === 'win'); card.className = 'card' + (screen === 'win' ? ' wincard' : '');
+  if (screen === 'game'){ ov.classList.remove('show'); return; }
+  ov.classList.add('show');
+  if (screen === 'menu'){
+    const cur = Math.min(G.save.level, LEVELS.length - 1);
+    card.innerHTML = `<h1 class="logo">Клапаны</h1><p>Крути подковы — песок сыплется с нижнего конца через клапан.<br>Насыпь каждую банку её цветом.</p>
+      <button class="primary big" data-act="play">Играть · уровень ${cur + 1}</button>
+      <div class="levels">${LEVELS.map((L, i) => `<button class="lv${G.save.done[i] ? ' done' : ''}${i === cur ? ' cur' : ''}" data-act="lv" data-i="${i}">${i + 1}</button>`).join('')}</div>
+      <button data-act="help">Как играть</button>`;
+  }
+  if (screen === 'help') card.innerHTML = `<h2>Как играть</h2><ul class="rules">
+      <li><b>Крути подкову пальцем</b> — щелчками в любую сторону. <b>Тап</b> — один щелчок по часовой.</li>
+      <li>Песок лежит цепочкой и не смешивается. Сыплется только с <b>нижнего конца</b>, когда он встал в клапан.</li>
+      <li><b>Цвет клапана</b> — что он пропустит. Прозрачный пропускает любой. За раз проходит одна порция одного цвета.</li>
+      <li>С одного конца выйдет один цвет, с другого — другой. Банка берёт только свой цвет.</li>
+      <li>Подкова снизу примет песок, если её конец стоит во входе клапана. Зажми подкову — увидишь, что даст щелчок.</li></ul>
+      <button class="primary" data-act="menu">Понятно</button>`;
+  if (screen === 'win'){
+    const p = payload || {}, li = G.s ? G.s.li : 0;
+    const words = p.clean ? ['Идеально!', 'Безупречно!', 'Чисто!'] : ['Красота!', 'Шикарно!', 'Блеск!', 'Ура!', 'Отлично!'];
+    const w = [...words[li % words.length]];
+    const sp = [[-8, -40, 26, 0], [92, -30, 20, 300], [-14, 40, 16, 600], [100, 52, 24, 150], [20, -70, 14, 450], [74, -78, 18, 750], [48, 95, 15, 900]];
+    card.innerHTML = `<div class="burst"></div><div class="glow"></div>
+      <div class="word" style="font-size:${Math.min(64, Math.floor(Math.min(innerWidth, 420) * 0.86 / (w.length * 0.62)))}px">${w.map((ch, i) => `<span style="animation-delay:${i * 55}ms,${700 + i * 95}ms">${ch}</span>`).join('')}</div>
+      ${sp.map(([x, y, f, d]) => `<i class="sp" style="left:${x}%;top:${y}px;width:${f}px;height:${f}px;animation-delay:${d}ms"></i>`).join('')}
+      <div><button class="primary big go" data-act="next">${p.last ? 'В меню' : 'Дальше'}</button></div>`;
+  }
+}
+$('card').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const act = b.dataset.act; Snd.init(); log('input', 'button', act); Snd.tick();
+  if (act === 'play') startLevel(Math.min(G.save.level, LEVELS.length - 1));
+  else if (act === 'lv') startLevel(+b.dataset.i);
+  else if (act === 'retry') startLevel(G.s ? G.s.li : 0);
+  else if (act === 'next'){ const li = G.s ? G.s.li + 1 : 0; if (li >= LEVELS.length) goto('menu'); else startLevel(li); }
+  else if (act === 'help') goto('help');
+  else goto('menu');
+});
+window.addEventListener('hashchange', () => routeHash());
+function routeHash(){
+  const h = location.hash.slice(1); if (!h) return false;
+  const m = /^(?:level|l)(\d+)$/.exec(h);
+  if (m){ startLevel(Math.max(0, Math.min(LEVELS.length - 1, +m[1] - 1))); return true; }
+  if (h === 'game'){ startLevel(Math.min(G.save.level, LEVELS.length - 1)); return true; }
+  if (h === 'win'){ if (!G.s) startLevel(0); goto('win', { text: 'Эталонный кадр экрана победы', clean: true }); return true; }
+  if (['menu', 'help'].includes(h)){ goto(h); return true; }
+  return false;
+}
+let toastUntil = 0;
+function toast(msg, ms){ const t = $('toast'); t.textContent = msg; t.classList.remove('hide'); toastUntil = now() + (ms || 1600); }
+function hud(){
+  const L = G.s ? G.s.L : LEVELS[0];
+  $('hud-level').textContent = (G.s ? G.s.li + 1 : 1) + ' · ' + L.name;
+  $('hud-moves').textContent = G.s ? 'щелчков ' + G.s.moves : '';
+  $('hint').textContent = G.dead ? '' : (L.hint || '');
+  $('btn-mute').classList.toggle('off', !!G.save.muted);
+  $('btn-undo').disabled = !G.s || !G.s.hist.length;
+}
+function showDead(reason){
+  G.dead = reason;
+  $('dead-text').textContent = reason; $('dead').classList.add('show'); $('btn-undo').classList.add('pulse');
+  log('event', 'dead', reason); Snd.dead(); buzz([30, 60, 30]); hud();
+}
+function hideDead(){ G.dead = null; $('dead').classList.remove('show'); $('btn-undo').classList.remove('pulse'); }
+
+// Граф уровня (до ~35 тыс. состояний) считается после первого кадра: не держит ни старт, ни показ уровня. par и тупики — оттуда.
+function scheduleAnalyze(){
+  if (!G.booted){ G.needAnalyze = true; return; }
+  const L = G.s && G.s.L; if (!L) return;
+  setTimeout(() => { if (!G.s || G.s.L !== L) return; const a = analyze(createState(G.s.li)); G.par = a.par;
+    log('event', 'level.start', 'level=' + (G.s.li + 1) + ' par=' + a.par + ' states=' + a.states + ' dead=' + a.dead); }, 80);
+}
+function startLevel(li){
+  G.s = createState(li); G.view = cloneState(G.s); G.pour = null; G.press = null; G.fx = []; G.ending = 0; G.hint = null; G.punch = 0; G.flashBg = 0; if (R3) R3.parts = [];
+  hideDead();
+  // граф уровня (до ~35 тыс. состояний) считается после первого кадра, чтобы не держать показ уровня; par и тупики — оттуда
+  G.par = -1; scheduleAnalyze();
+  if (R3) buildLevel(G.s.L);
+  goto('game'); hud();
+  if (li === 0 && !G.save.done[0]) setTimeout(() => { if (G.s && G.s.li === 0 && !G.s.moves){ const sol = solve(G.s); if (sol && sol.length) G.hint = { m: sol[0], until: now() + 4000 }; } }, 900);
+}
+
+// ===========================================================================
+// 3D: рендерер, окружение, материалы. Всё строится кодом из именованных функций (§11), модели Tripo — файлами.
+// ===========================================================================
+let R3 = null;
+const GLB = {};                // id → модель из assets/models (если загрузилась)
+const MODEL_IDS = ['valve', 'lid', 'lock', 'stand'];
+
+// Шейдеры. Цвета в юниформах — линейные, в конце colorspace_fragment переводит в sRGB.
+const SH_VERT = `
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec3 vO;
+void main(){
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vO = position;
+  vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz);
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+// Песок дозой в трубке: зерно (хеш-шум по координатам), тёмные швы между дозами, искорки. Доза — дуга 45°, показывается её часть uLo..uHi
+// (0 — со стороны E1, 1 — со стороны E0): так доза «вытекает» в клапан и «наползает» в приёмнике. uHi — мигание в превью.
+const SH_SAND = `
+uniform vec3 uCol; uniform vec3 uLight; uniform float uLo; uniform float uHi; uniform float uBlink; uniform float uTime; uniform float uGhost;
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec3 vO;
+float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+void main(){
+  float f = atan(vO.y, vO.x) / 0.7853982;
+  if (f < uLo || f > uHi) discard;
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 L = normalize(uLight);
+  float g = h3(floor(vO * 70.0)), g2 = h3(floor(vO * 31.0) + 7.0);
+  float lam = 0.55 + 0.45 * clamp(dot(N, L), 0.0, 1.0);
+  float ndv = clamp(dot(N, vV), 0.0, 1.0);
+  vec3 c = uCol * lam * (0.82 + 0.3 * g + 0.12 * g2);
+  c *= 0.78 + 0.32 * ndv;
+  float seam = smoothstep(0.035, 0.0, f - uLo) * step(0.001, 1.0 - uLo) + smoothstep(0.965, 1.0, f) * step(uHi, 0.999) * 0.0;
+  float edge = min(f, 1.0 - f); c *= mix(0.72, 1.0, smoothstep(0.0, 0.06, edge));
+  c += vec3(1.0) * step(0.985, h3(floor(vO * 90.0) + floor(uTime * 3.0))) * 0.35 * ndv;
+  if (uBlink > 0.5) c = mix(c, vec3(1.0), 0.2 + 0.16 * sin(uTime * 10.0));
+  float a = 1.0;
+  if (uGhost > 0.5){ a = 0.55 + 0.2 * sin(uTime * 8.0); c = mix(uCol, vec3(1.0), 0.25); }
+  gl_FragColor = vec4(c, a);
+  #include <colorspace_fragment>
+}`;
+// Песок в банке: срез — горка (конус от края к середине), сверху светлее; выше — отрезано. uGhost — «призрак» прихода.
+const SH_HEAP = `
+uniform vec3 uCol; uniform vec3 uLight; uniform float uTop; uniform float uHeap; uniform vec2 uC; uniform float uR; uniform float uTime;
+uniform float uGhost; uniform float uGhostTop; uniform vec3 uGhostC;
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec3 vO;
+float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+void main(){
+  float r = length(vW.xz - uC) / uR;
+  float surf = uTop + uHeap * (1.0 - clamp(r, 0.0, 1.0));
+  bool ghost = false;
+  if (vW.y > surf){ if (uGhost > 0.5 && vW.y < uGhostTop + uHeap * (1.0 - clamp(r, 0.0, 1.0))) ghost = true; else discard; }
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 L = normalize(uLight);
+  float g = h3(floor(vW * 60.0));
+  vec3 c = uCol * (0.6 + 0.4 * clamp(dot(N, L), 0.0, 1.0)) * (0.84 + 0.28 * g);
+  if (!gl_FrontFacing) c = uCol * (1.05 + 0.2 * g);
+  float top = smoothstep(surf - 0.05, surf, vW.y); c = mix(c, uCol * 1.15 + 0.08, top * 0.6);
+  float a = 1.0;
+  if (ghost){ a = 0.5 + 0.2 * sin(uTime * 8.0); c = mix(uGhostC, vec3(1.0), 0.3); }
+  gl_FragColor = vec4(c, a);
+  #include <colorspace_fragment>
+}`;
+// Стекло: прозрачная основа, френель по краю, два блика. Без второго прохода рендера (дёшево на телефоне).
+const SH_GLASS = `
+uniform vec3 uTint; uniform vec3 uLight; uniform float uAlpha; uniform float uBack;
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec3 vO;
+void main(){
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  float ndv = clamp(abs(dot(N, vV)), 0.0, 1.0);
+  float fr = pow(1.0 - ndv, 2.4);
+  vec3 L = normalize(uLight);
+  float sp = pow(max(dot(N, normalize(L + vV)), 0.0), 140.0) * 1.5;
+  vec3 Rf = reflect(-vV, N);
+  float strip = smoothstep(0.78, 0.9, Rf.y * 0.85 - Rf.x * 0.4);
+  float a = uAlpha + fr * 0.6 + sp + strip * 0.45;
+  vec3 c = mix(uTint, vec3(1.0), clamp(fr * 0.7 + sp + strip, 0.0, 1.0));
+  gl_FragColor = vec4(c, clamp(a, 0.0, 0.95) * (uBack > 0.5 ? 0.45 : 1.0));
+  #include <colorspace_fragment>
+}`;
+// Жёлоб клапана: непрозрачный открытый лоток цвета клапана. uv.x — поперёк дна (−1..1), 3 — кромка; uv.y — путь от выпуска, мировые ед.
+// Шевроны бегут вниз по пути (направление), песок струйкой — полоса по дну между uFlowA и uFlowB. uGlow — подсветка дороги при касании,
+// uDim — приглушить чужие дороги, пока палец на подкове.
+const SH_TROUGH_VERT = `
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+void main(){
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vUv = uv; vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz);
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const SH_TROUGH = `
+uniform vec3 uCol; uniform vec3 uStripe; uniform vec3 uRim; uniform vec3 uLight; uniform float uTime; uniform float uPhase; uniform float uGlow; uniform float uDim;
+uniform float uFlowA; uniform float uFlowB; uniform vec3 uSandCol;
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+void main(){
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  float lam = 0.62 + 0.38 * clamp(dot(N, normalize(uLight)), 0.0, 1.0);
+  float x = vUv.x, s = vUv.y;
+  vec3 c;
+  float pulse = 0.55 + 0.45 * sin(uTime * 7.0);
+  if (x > 1.5) c = mix(uRim, vec3(1.0, 0.98, 0.85), uGlow * (0.6 + 0.4 * pulse));
+  else {
+    float ph = fract((s + abs(x) * 0.15) / 0.3 - uPhase);
+    float chev = smoothstep(0.0, 0.05, ph) * smoothstep(0.45, 0.39, ph);
+    c = mix(uCol, uStripe, chev);
+    c *= 0.74 + 0.26 * (1.0 - x * x);
+    float inFlow = step(uFlowA, s) * step(s, uFlowB) * step(abs(x), 0.62);
+    if (inFlow > 0.5){
+      float g = h3(floor(vec3((s - uTime * 2.6) * 55.0, x * 12.0, 1.0))), g2 = h3(floor(vec3((s - uTime * 2.1) * 23.0, x * 5.0, 3.0)));
+      vec3 sc = uSandCol * (0.78 + 0.3 * g + 0.12 * g2);
+      sc *= mix(0.7, 1.0, smoothstep(0.62, 0.45, abs(x)));
+      sc += vec3(1.0) * step(0.97, h3(floor(vec3((s - uTime * 2.6) * 80.0, x * 18.0, 5.0)))) * 0.3;
+      c = sc;
+    }
+  }
+  c *= lam;
+  if (x < 1.5) c *= 1.0 + 0.22 * uGlow * pulse;
+  float l = dot(c, vec3(0.3, 0.55, 0.15));
+  c = mix(c, mix(vec3(l), c, 0.45) * 0.82, uDim);
+  gl_FragColor = vec4(c, 1.0);
+  #include <colorspace_fragment>
+}`;
+// Ореол под жёлобом при подсветке: мягкая полоса цвета клапана, uv.x поперёк (−1..1).
+const SH_GLOW = `
+uniform vec3 uCol; uniform float uGlow; uniform float uTime;
+varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+void main(){
+  float k = smoothstep(1.0, 0.5, abs(vUv.x));
+  gl_FragColor = vec4(uCol * 1.15 + vec3(0.06), uGlow * k * (0.8 + 0.2 * sin(uTime * 7.0)));
+  #include <colorspace_fragment>
+}`;
+const SH_BG_VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+// Фон: вертикальный градиент, мягкое пятно света за полем, редкий узор кружков (как на референсе — сиреневый).
+const SH_BG = `
+uniform vec3 uTop; uniform vec3 uBot; varying vec2 vUv;
+void main(){
+  vec3 c = mix(uBot, uTop, smoothstep(0.0, 1.0, vUv.y));
+  float glow = 1.0 - smoothstep(0.0, 0.55, distance(vUv, vec2(0.5, 0.58)));
+  c += vec3(0.06, 0.05, 0.08) * glow;
+  vec2 g = fract(vUv * vec2(9.0, 18.0)) - 0.5; float dots = smoothstep(0.12, 0.09, length(g));
+  c += vec3(0.025) * dots;
+  gl_FragColor = vec4(c, 1.0);
+  #include <colorspace_fragment>
+}`;
+
+// ?cold=1 — замер холодного старта: уникальная строка в шейдерах, кэш шейдеров браузера промахивается.
+const COLD = /[?&]cold=1/.test(location.search) ? '\n// cold ' + Date.now() + '\n' : '';
+function lin(hex){ return new THREE.Color(hex); }       // THREE.Color из sRGB-строки сам переводит в линейный
+const LIGHT_DIR = new THREE.Vector3(-0.45, 0.8, 0.6);
+const STEP = 2 * Math.PI / CFG.POS;
+
+// Профиль банки для LatheGeometry: дно со скруглением, стенки, плечо, горло. Высота h, радиус r.
+function jarProfile(h, r){
+  const pts = [], k = 0.12;
+  pts.push(new THREE.Vector2(0.001, 0));
+  for (let i = 0; i <= 6; i++){ const a = -Math.PI / 2 + (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(r - k + Math.cos(a) * k, k + Math.sin(a) * k)); }
+  pts.push(new THREE.Vector2(r, h - 0.2));
+  for (let i = 1; i <= 5; i++){ const a = (i / 5) * (Math.PI / 2); pts.push(new THREE.Vector2(r - 0.1 + Math.cos(a) * 0.1, h - 0.2 + Math.sin(a) * 0.1)); }
+  pts.push(new THREE.Vector2(r * 0.8, h - 0.08)); pts.push(new THREE.Vector2(r * 0.8, h)); pts.push(new THREE.Vector2(r * 0.84, h + 0.02));
+  return pts;
+}
+function sandJarProfile(r){        // внутренний объём банки (цилиндр до верха), горку режет шейдер
+  return [new THREE.Vector2(0.001, 0.04), new THREE.Vector2(r - 0.1, 0.04), new THREE.Vector2(r - 0.04, 0.1), new THREE.Vector2(r - 0.04, 2.0), new THREE.Vector2(0.001, 2.0)];
+}
+function funnelProfile(){          // воронка над горлом банки: широкий раструб сверху, носик в горло
+  const w = CFG.FUNNEL_W / 2, h = CFG.FUNNEL_H;
+  return [new THREE.Vector2(0.16, -0.12), new THREE.Vector2(0.17, 0.06), new THREE.Vector2(w * 0.92, h - 0.03), new THREE.Vector2(w, h), new THREE.Vector2(w - 0.05, h + 0.012)];
+}
+
+// Значки цветов (не только цветом, §9): рисуются один раз в canvas, текстура на этикетке банки и бирке замка.
+function drawSymbol(ctx, sym, cx, cy, s, color){
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s); ctx.fillStyle = color; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.09; ctx.beginPath();
+  if (sym === 'drop'){ ctx.moveTo(0, -0.95); ctx.bezierCurveTo(0.55, -0.25, 0.75, 0.15, 0.6, 0.45); ctx.arc(0, 0.32, 0.62, 0.2, Math.PI - 0.2); ctx.bezierCurveTo(-0.75, 0.15, -0.55, -0.25, 0, -0.95); }
+  else if (sym === 'heart'){ ctx.moveTo(0, 0.85); ctx.bezierCurveTo(-1.1, 0.1, -0.75, -0.95, 0, -0.35); ctx.bezierCurveTo(0.75, -0.95, 1.1, 0.1, 0, 0.85); }
+  else if (sym === 'star'){ for (let i = 0; i < 10; i++){ const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.42 : 0.95; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); }
+  else if (sym === 'moon'){ ctx.arc(0, 0, 0.85, 0.6, Math.PI * 2 - 0.6); ctx.arc(0.45, 0, 0.6, Math.PI * 2 - 1.1, 1.1, true); ctx.closePath(); }
+  else if (sym === 'sun'){ ctx.arc(0, 0, 0.5, 0, Math.PI * 2); for (let i = 0; i < 8; i++){ const a = i * Math.PI / 4; ctx.moveTo(Math.cos(a) * 0.62, Math.sin(a) * 0.62); ctx.arc(Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0.16, 0, Math.PI * 2); } }
+  else { ctx.moveTo(0, 0.9); ctx.bezierCurveTo(-0.9, 0.3, -0.6, -0.8, 0.6, -0.9); ctx.bezierCurveTo(0.8, 0.0, 0.5, 0.6, 0, 0.9); }
+  ctx.fill(); ctx.stroke(); ctx.restore();
+}
+const LABEL_TEX = {};
+function labelTexture(c){             // этикетка банки: белая плашка со значком цвета; '' — «любой» (прозрачный клапан)
+  if (LABEL_TEX[c]) return LABEL_TEX[c];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d');
+  x.fillStyle = 'rgba(255,255,255,0.92)'; x.beginPath(); x.roundRect(10, 18, 108, 92, 26); x.fill();
+  drawSymbol(x, COLORS[c].sym, 64, 64, 34, COLORS[c].hex);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return (LABEL_TEX[c] = t);
+}
+const MISC_TEX = {};
+function radialTexture(kind){          // мягкие тени, крестик «не пройдёт», ореол
+  if (MISC_TEX[kind]) return MISC_TEX[kind];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d');
+  if (kind === 'blob'){ const g = x.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, 'rgba(40,20,90,0.55)'); g.addColorStop(1, 'rgba(40,20,90,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  if (kind === 'ring'){ x.filter = 'blur(5px)'; x.strokeStyle = 'rgba(50,25,110,0.42)'; x.lineWidth = 15; x.beginPath(); x.arc(64, 64, 46, Math.PI * 0.375, Math.PI * 1.875); x.stroke(); }
+  if (kind === 'cross'){ x.strokeStyle = '#ff3b5c'; x.lineWidth = 20; x.lineCap = 'round'; x.beginPath(); x.moveTo(30, 30); x.lineTo(98, 98); x.moveTo(98, 30); x.lineTo(30, 98); x.stroke(); }
+  if (kind === 'soft'){ const g = x.createRadialGradient(64, 64, 0, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.45, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  if (kind === 'star'){ x.fillStyle = '#fff'; x.beginPath(); for (let i = 0; i < 8; i++){ const a = i * Math.PI / 4, r = i % 2 ? 14 : 60; x.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } x.fill();
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 40); g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  if (kind === 'plug'){ x.fillStyle = '#4b3c8c'; x.beginPath(); x.arc(64, 64, 58, 0, Math.PI * 2); x.fill(); x.fillStyle = '#efeaff'; x.beginPath(); x.arc(64, 64, 46, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#4b3c8c'; x.beginPath(); x.roundRect(30, 55, 68, 18, 9); x.fill(); }
+  if (kind === 'halo'){ const g = x.createRadialGradient(64, 64, 30, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return (MISC_TEX[kind] = t);
+}
+
+function initRenderer(){
+  const cv = $('gl');
+  const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NoToneMapping;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(VIEW.FOV, 1, 0.5, 80);
+  // окружение для латуни и золота: градиентная сфера + две светлые панели → PMREM (без внешних файлов)
+  const envScene = new THREE.Scene();
+  const envSphere = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide,
+    vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'varying vec3 vP; void main(){ float h = normalize(vP).y; vec3 c = mix(vec3(0.35,0.28,0.55), vec3(1.0,0.97,0.95), smoothstep(-0.3, 0.9, h)); gl_FragColor = vec4(c, 1.0); }' }));
+  envScene.add(envSphere);
+  for (const [x, y, z, w, h] of [[-4, 5, 4, 5, 2], [5, 2, 3, 2, 4], [0, -3, 6, 6, 1]]){
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3, 3), side: THREE.DoubleSide }));
+    p.position.set(x, y, z); p.lookAt(0, 0, 0); envScene.add(p);
+  }
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = pmrem.fromScene(envScene, 0.02).texture;
+  scene.environment = env;
+  pmrem.dispose();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x6a52c8, 1.2));
+  const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.copy(LIGHT_DIR).multiplyScalar(10); scene.add(dl);
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({ vertexShader: SH_BG_VERT, fragmentShader: SH_BG + COLD, depthWrite: false,
+    uniforms: { uTop: { value: lin(VIEW.BG_TOP) }, uBot: { value: lin(VIEW.BG_BOTTOM) } } }));
+  bg.position.z = -6; bg.renderOrder = -10; scene.add(bg);
+  // подкова: дуга 270° от E1 (φ = 22,5°) до E0 (φ = 292,5°) против часовой в координатах three.js — в положении o = 0 разрыв справа-снизу
+  const arc = new THREE.TorusGeometry(CFG.RING_R, CFG.TUBE_R, 22, 96, 1.5 * Math.PI).rotateZ(Math.PI / 8);
+  const geo = {
+    glass: arc,
+    cap: new THREE.SphereGeometry(CFG.TUBE_R, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),          // заглушка конца: полусфера по +y
+    dose: new THREE.TorusGeometry(CFG.RING_R, VIEW.SAND_R, 12, 18, Math.PI / 4),               // доза песка: дуга 45° (φ 0..45°)
+    ghost: new THREE.TorusGeometry(CFG.RING_R, CFG.TUBE_R * 0.55, 8, 72, 1.5 * Math.PI).rotateZ(Math.PI / 8),
+    grain: new THREE.IcosahedronGeometry(1, 0),
+    dot: new THREE.CircleGeometry(1, 12),
+    sphere: new THREE.IcosahedronGeometry(1, 2),
+    plane: new THREE.PlaneGeometry(1, 1),
+    rim: new THREE.TorusGeometry(1, 0.22, 8, 24),
+    stem: new THREE.CylinderGeometry(0.035, 0.035, 1, 10),
+    lip: new THREE.TorusGeometry(CFG.TUBE_R * 0.96, 0.034, 8, 28),
+    collar: new THREE.TorusGeometry(CFG.TUBE_R * 1.08, 0.055, 10, 32),
+    funnel: new THREE.LatheGeometry(funnelProfile(), 36),
+    jar: {}, jarSand: {},
+  };
+  const glassUniforms = (back) => ({ uTint: { value: lin(VIEW.GLASS_TINT) }, uLight: { value: LIGHT_DIR }, uAlpha: { value: 0.07 }, uBack: { value: back ? 1 : 0 } });
+  const mat = {
+    glassFront: new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_GLASS + COLD, uniforms: glassUniforms(false), transparent: true, depthWrite: false, side: THREE.FrontSide }),
+    glassBack: new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_GLASS + COLD, uniforms: glassUniforms(true), transparent: true, depthWrite: false, side: THREE.BackSide }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xe0a93a, metalness: 1.0, roughness: 0.28 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xffc21a, metalness: 1.0, roughness: 0.2 }),
+    wood: new THREE.MeshStandardMaterial({ color: 0xd98a3d, metalness: 0.0, roughness: 0.55 }),
+    blob: new THREE.MeshBasicMaterial({ map: radialTexture('blob'), transparent: true, depthWrite: false }),
+    ringShadow: new THREE.MeshBasicMaterial({ map: radialTexture('ring'), transparent: true, depthWrite: false }),
+    cross: new THREE.MeshBasicMaterial({ map: radialTexture('cross'), transparent: true, depthTest: false }),
+    halo: new THREE.MeshBasicMaterial({ map: radialTexture('halo'), transparent: true, depthWrite: false, color: 0xfff3a0 }),
+    line: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false }),
+    ghost: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false }),
+    dot: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }),
+    grain: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0 }),
+    drop: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    collar: {}, funnel: {},
+  };
+  // частицы: песчинки струйки и брызги/конфетти — по одному InstancedMesh, позиции считаются от абсолютного времени
+  const grains = new THREE.InstancedMesh(geo.grain, mat.grain, VIEW.POOL_GRAINS); grains.renderOrder = 4; grains.count = 0; grains.frustumCulled = false;
+  grains.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(VIEW.POOL_GRAINS * 3).fill(1), 3);
+  const drops = new THREE.InstancedMesh(geo.sphere, mat.drop, VIEW.POOL_DROPS); drops.renderOrder = 4; drops.count = 0; drops.frustumCulled = false;
+  drops.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(VIEW.POOL_DROPS * 3).fill(1), 3);
+  const confMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 0.55), confMat, VIEW.POOL_CONF); conf.renderOrder = 6; conf.count = 0; conf.frustumCulled = false;
+  conf.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(VIEW.POOL_CONF * 3).fill(1), 3);
+  const starMat = new THREE.MeshBasicMaterial({ map: radialTexture('star'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const stars = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), starMat, VIEW.POOL_STARS); stars.renderOrder = 7; stars.count = 0; stars.frustumCulled = false;
+  stars.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(VIEW.POOL_STARS * 3).fill(1), 3);
+  scene.add(grains, drops, conf, stars);
+  R3 = { renderer, scene, camera, env, bg, geo, mat, grains, drops, conf, stars, parts: [], stream: [], level: null, dpr: Math.min(window.devicePixelRatio || 1, VIEW.DPR_MAX), frames: [] };
+  mark('gl');
+}
+function sandMaterial(c){
+  return new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_SAND + COLD, side: THREE.DoubleSide, transparent: true,
+    uniforms: { uCol: { value: lin(COLORS[c || 'b'].hex) }, uLight: { value: LIGHT_DIR }, uLo: { value: 0 }, uHi: { value: 1 }, uBlink: { value: 0 }, uTime: { value: 0 }, uGhost: { value: 0 } } });
+}
+function heapMaterial(c, x){
+  return new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_HEAP + COLD, side: THREE.DoubleSide, transparent: true,
+    uniforms: { uCol: { value: lin(COLORS[c].hex) }, uLight: { value: LIGHT_DIR }, uTop: { value: -99 }, uHeap: { value: 0 }, uC: { value: new THREE.Vector2(x, 0) }, uR: { value: CFG.JAR_W * 0.36 },
+      uTime: { value: 0 }, uGhost: { value: 0 }, uGhostTop: { value: 0 }, uGhostC: { value: new THREE.Color() } } });
+}
+function valveColorHex(c){ return c ? COLORS[c].hex : VIEW.CLEAR_VALVE; }
+function collarMat(c){ const k = c || '_'; if (!R3.mat.collar[k]) R3.mat.collar[k] = new THREE.MeshStandardMaterial({ color: lin(valveColorHex(c)), metalness: c ? 0.1 : 0.6, roughness: c ? 0.3 : 0.15 }); return R3.mat.collar[k]; }
+function funnelMat(c){ if (!R3.mat.funnel[c]) R3.mat.funnel[c] = new THREE.MeshStandardMaterial({ color: lin(COLORS[c].hex), metalness: 0.05, roughness: 0.32, side: THREE.DoubleSide }); return R3.mat.funnel[c]; }
+
+// --- GLB-загрузчик (минимальный glTF 2.0: меши, PBR-материалы, текстуры, иерархия). Взят из za-odnu-khodku без скиннинга. ---
+async function loadGLB(url){
+  const res = await fetch(url); if (!res.ok) throw new Error('нет файла ' + url);
+  const buf = await res.arrayBuffer(), dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('не GLB: ' + url);
+  let off = 12, json = null, bin = null;
+  while (off < buf.byteLength){
+    const len = dv.getUint32(off, true), typ = dv.getUint32(off + 4, true); off += 8;
+    if (typ === 0x4E4F534A) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, off, len)));
+    else if (typ === 0x004E4942) bin = buf.slice(off, off + len);
+    off += len;
+  }
+  const CT = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array }, NC = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+  const acc = (i) => {
+    const a = json.accessors[i], bv = json.bufferViews[a.bufferView], Tt = CT[a.componentType], n = NC[a.type];
+    const start = (bv.byteOffset || 0) + (a.byteOffset || 0), stride = bv.byteStride;
+    if (!stride || stride === n * Tt.BYTES_PER_ELEMENT) return { arr: new Tt(bin, start, a.count * n), n };
+    const out = new Tt(a.count * n), src = new Tt(bin, bv.byteOffset || 0, ((bv.byteLength) / Tt.BYTES_PER_ELEMENT) | 0), st = stride / Tt.BYTES_PER_ELEMENT, o0 = (a.byteOffset || 0) / Tt.BYTES_PER_ELEMENT;
+    for (let k = 0; k < a.count; k++) for (let c = 0; c < n; c++) out[k * n + c] = src[o0 + k * st + c];
+    return { arr: out, n };
+  };
+  const texCache = {};
+  const tex = async (ti, srgb) => {
+    if (texCache[ti]) return texCache[ti];
+    const im = json.images[json.textures[ti].source], bv = json.bufferViews[im.bufferView];
+    const blob = new Blob([new Uint8Array(bin, bv.byteOffset || 0, bv.byteLength)], { type: im.mimeType || 'image/png' });
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'none' });
+    const t = new THREE.CanvasTexture(bmp); t.flipY = false; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 4;
+    return (texCache[ti] = t);
+  };
+  const mats = [];
+  for (const m of (json.materials || [{}])){
+    const pbr = m.pbrMetallicRoughness || {}, f = pbr.baseColorFactor || [1, 1, 1, 1];
+    const opt = { color: new THREE.Color(f[0], f[1], f[2]), roughness: pbr.roughnessFactor !== undefined ? pbr.roughnessFactor : 1, metalness: pbr.metallicFactor !== undefined ? pbr.metallicFactor : 1, envMapIntensity: 1.0 };
+    if (pbr.baseColorTexture) opt.map = await tex(pbr.baseColorTexture.index, true);
+    if (pbr.metallicRoughnessTexture){ const orm = await tex(pbr.metallicRoughnessTexture.index, false); opt.roughnessMap = orm; opt.metalnessMap = orm; }
+    if (m.normalTexture) opt.normalMap = await tex(m.normalTexture.index, false);
+    mats.push(new THREE.MeshStandardMaterial(opt));
+  }
+  const toFloat = (a) => { if (a.arr instanceof Float32Array) return a.arr; const d = a.arr instanceof Uint8Array ? 255 : a.arr instanceof Uint16Array ? 65535 : a.arr instanceof Int8Array ? 127 : a.arr instanceof Int16Array ? 32767 : 1; return Float32Array.from(a.arr, (x) => Math.max(-1, x / d)); };
+  const buildMesh = (mi) => {
+    const grp = new THREE.Group();
+    for (const pr of json.meshes[mi].primitives){
+      const geo = new THREE.BufferGeometry(), at_ = pr.attributes;
+      geo.setAttribute('position', new THREE.BufferAttribute(toFloat(acc(at_.POSITION)), 3));
+      if (at_.NORMAL) geo.setAttribute('normal', new THREE.BufferAttribute(toFloat(acc(at_.NORMAL)), 3));
+      if (at_.TEXCOORD_0) geo.setAttribute('uv', new THREE.BufferAttribute(toFloat(acc(at_.TEXCOORD_0)), 2));
+      if (pr.indices !== undefined){ const ix = acc(pr.indices); geo.setIndex(new THREE.BufferAttribute(ix.arr, 1)); }
+      if (!at_.NORMAL) geo.computeVertexNormals();
+      grp.add(new THREE.Mesh(geo, mats[pr.material || 0] || mats[0]));
+    }
+    return grp;
+  };
+  const objs = json.nodes.map((nd, i) => {
+    const o = nd.mesh !== undefined ? buildMesh(nd.mesh) : new THREE.Group();
+    if (nd.matrix) new THREE.Matrix4().fromArray(nd.matrix).decompose(o.position, o.quaternion, o.scale);
+    if (nd.translation) o.position.fromArray(nd.translation);
+    if (nd.rotation) o.quaternion.fromArray(nd.rotation);
+    if (nd.scale) o.scale.fromArray(nd.scale);
+    return o;
+  });
+  json.nodes.forEach((nd, i) => { for (const c of (nd.children || [])) objs[i].add(objs[c]); });
+  const sc = json.scenes[json.scene || 0], root = new THREE.Group();
+  for (const n of sc.nodes) root.add(objs[n]);
+  root.updateMatrixWorld(true);
+  return root;
+}
+// Подгонка модели: центр в начало, наибольший габарит = size (или по оси axis).
+function fitModel(model, size, axis){
+  const bb = new THREE.Box3().setFromObject(model), c = new THREE.Vector3(), sz = new THREE.Vector3(); bb.getCenter(c); bb.getSize(sz);
+  const k = size / (axis ? sz[axis] : Math.max(sz.x, sz.y, sz.z) || 1);
+  const holder = new THREE.Group(), m = model.clone(true); m.position.sub(c); holder.add(m); holder.scale.setScalar(k);
+  const out = new THREE.Group(); out.add(holder); out.userData.size = sz.clone().multiplyScalar(k); return out;
+}
+async function loadModels(){
+  let list = MODEL_IDS;
+  try { const r = await fetch('assets/models/manifest.json'); if (r.ok) list = (await r.json()).models || MODEL_IDS; } catch (e) {}
+  await Promise.all(list.map(async (id) => {
+    try { GLB[id] = await loadGLB('assets/models/' + id + '.glb'); log('event', 'glb.loaded', id); } catch (e) { log('event', 'glb.fail', id + ': ' + e.message); }
+  }));
+  mark('glb');
+}
+
+// --- построители деталей (процедурные — с запасным вариантом, если GLB не загрузился) ---
+// Вентиль клапана: модель Tripo (латунная муфта + штурвал), штурвал перекрашен в цвет клапана (красные тексели → цвет клапана).
+const WHEEL_MAT = {};
+function wheelMaterial(src, c){
+  const key = (c || '_') + src.uuid; if (WHEEL_MAT[key]) return WHEEL_MAT[key];
+  const m = src.clone(); const col = lin(valveColorHex(c));
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTintC = { value: col };
+    sh.fragmentShader = 'uniform vec3 uTintC;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      { float red = diffuseColor.r - max(diffuseColor.g, diffuseColor.b);
+        float k = smoothstep(0.12, 0.3, red);
+        float lum = dot(diffuseColor.rgb, vec3(0.6, 0.3, 0.1));
+        diffuseColor.rgb = mix(diffuseColor.rgb, uTintC * (0.55 + 1.4 * lum), k); }`);
+  };
+  m.customProgramCacheKey = () => 'wheelTint';
+  return (WHEEL_MAT[key] = m);
+}
+function makeWheel(c){
+  if (GLB.valve){ const g = fitModel(GLB.valve, VIEW.WHEEL_D); g.traverse(o => { if (o.isMesh) o.material = wheelMaterial(o.material, c); }); g.userData.glb = true; return g; }
+  const g = new THREE.Group(), d = VIEW.WHEEL_D, enamel = collarMat(c);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(d * 0.42, d * 0.07, 10, 28), enamel); rim.position.z = d * 0.25; g.add(rim);
+  for (let i = 0; i < 2; i++){ const sp = new THREE.Mesh(new THREE.CylinderGeometry(d * 0.05, d * 0.05, d * 0.84, 8), enamel); sp.rotation.z = i * Math.PI / 2; sp.position.z = d * 0.25; g.add(sp); }
+  const hub = new THREE.Mesh(R3.geo.sphere, R3.mat.brass); hub.scale.setScalar(d * 0.13); hub.position.z = d * 0.3; g.add(hub);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(d * 0.28, d * 0.3, d * 0.4, 18), R3.mat.brass); body.rotation.x = Math.PI / 2; g.add(body);
+  return g;
+}
+function makeLid(color){                 // крышка банки: модель Tripo, перекрашенная в цвет банки
+  let g;
+  if (GLB.lid){ g = fitModel(GLB.lid, CFG.JAR_W * 0.86, 'x'); g.traverse(o => { if (o.isMesh){ o.material = o.material.clone(); o.material.map = null; o.material.color = lin(COLORS[color].hex); o.material.metalness = 0.05; o.material.roughness = 0.3; o.material.roughnessMap = null; o.material.metalnessMap = null; } }); }
+  else { g = new THREE.Group(); const m = new THREE.Mesh(new THREE.CylinderGeometry(CFG.JAR_W * 0.43, CFG.JAR_W * 0.43, 0.16, 28), new THREE.MeshStandardMaterial({ color: lin(COLORS[color].hex), roughness: 0.35 })); g.add(m); g.userData.size = new THREE.Vector3(CFG.JAR_W * 0.86, 0.16, CFG.JAR_W * 0.86); }
+  return g;
+}
+function makeLock(){                     // золотой замок
+  if (GLB.lock) return fitModel(GLB.lock, 0.56, 'y');
+  const g = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.28, 0.12), R3.mat.gold); g.add(body);
+  const sh = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.035, 8, 20, Math.PI), R3.mat.gold); sh.position.y = 0.14; g.add(sh); return g;
+}
+function makeShelf(width){               // полка под банками
+  if (GLB.stand){ const g = fitModel(GLB.stand, width, 'x'), k = VIEW.SHELF_H / g.userData.size.y; g.scale.set(1, k, 1.4 * k); g.userData.size.y *= k; return g; }
+  const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.BoxGeometry(width, 0.28, 1.1), R3.mat.wood); g.add(p);
+  g.userData.size = new THREE.Vector3(width, 0.28, 1.1); return g;
+}
+// Муфта на трубке подковы в точке θ (как цветные муфты на референсе): тор вокруг трубки, ось — по касательной.
+function collarAt(p, deg, mat){
+  const m = new THREE.Mesh(R3.geo.collar, mat); m.position.set(p.x, p.y, 0);
+  m.rotation.set(0, Math.PI / 2, 0); m.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), Math.atan2(Math.sin(deg * DEG), -Math.cos(deg * DEG)) - Math.PI); return m;
+}
+// Ломаная трубки клапана → кривая для песчинок (точки + накопленная длина).
+function polyline(pts){ const P = pts.map(p => new THREE.Vector3(p.x, p.y, p.z || 0)), S = [0]; for (let i = 1; i < P.length; i++) S.push(S[i - 1] + P[i].distanceTo(P[i - 1])); return { P, S, len: S[S.length - 1] }; }
+// Осевая жёлоба: ломаная клапана со скруглёнными изгибами (квадратичные Безье) → точки {x, y}.
+function troughCurve(P){
+  const out = [{ x: P[0].x, y: P[0].y }];
+  for (let i = 1; i < P.length - 1; i++){
+    const a = P[i - 1], b = P[i], c = P[i + 1], l1 = Math.hypot(b.x - a.x, b.y - a.y), l2 = Math.hypot(c.x - b.x, c.y - b.y);
+    const r = Math.min(VIEW.TROUGH_FILLET, l1 * 0.45, l2 * 0.45);
+    const p1 = { x: b.x + (a.x - b.x) / l1 * r, y: b.y + (a.y - b.y) / l1 * r }, p2 = { x: b.x + (c.x - b.x) / l2 * r, y: b.y + (c.y - b.y) / l2 * r };
+    for (let k = 0; k <= 8; k++){ const t = k / 8, u = 1 - t; out.push({ x: u * u * p1.x + 2 * u * t * b.x + t * t * p2.x, y: u * u * p1.y + 2 * u * t * b.y + t * t * p2.y }); }
+  }
+  out.push({ x: P[P.length - 1].x, y: P[P.length - 1].y });
+  return out.filter((p, i) => i === 0 || Math.hypot(p.x - out[i - 1].x, p.y - out[i - 1].y) > 1e-5);
+}
+// Жёлоб по осевой C: открытый к камере полужёлоб (дно — полукруг радиуса wi), кромка шириной w − wi, снаружи — полукруг w.
+// uv.x — поперёк дна (−1..1), 3 — кромка и низ; uv.y — путь от начала. Плюс лента ореола под ним (uv.x −1..1).
+function troughGeometry(C, w, wi, gw){
+  const n = C.length, S = [0];
+  for (let i = 1; i < n; i++) S.push(S[i - 1] + Math.hypot(C[i].x - C[i - 1].x, C[i].y - C[i - 1].y));
+  const prof = [], K = 10;
+  for (let k = 0; k <= K; k++){ const a = Math.PI * k / K; prof.push([wi * Math.cos(a), -wi * Math.sin(a), -Math.cos(a), Math.sin(a), Math.cos(a)]); }
+  prof.push([-wi, 0, 0, 1, 3], [-w, 0, 0, 1, 3]);
+  for (let k = K; k >= 0; k--){ const a = Math.PI * k / K; prof.push([w * Math.cos(a), -w * Math.sin(a), Math.cos(a), -Math.sin(a), 3]); }
+  prof.push([w, 0, 0, 1, 3], [wi, 0, 0, 1, 3]);
+  const m = prof.length, pos = [], nor = [], uv = [], idx = [], gpos = [], gnor = [], guv = [], gidx = [];
+  for (let i = 0; i < n; i++){
+    const d = (a, b) => { const x = C[b].x - C[a].x, y = C[b].y - C[a].y, l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+    let t = i === 0 ? d(0, 1) : i === n - 1 ? d(n - 2, n - 1) : (() => { const p = d(i - 1, i), q = d(i, i + 1); return [p[0] + q[0], p[1] + q[1]]; })();
+    const tl = Math.hypot(t[0], t[1]) || 1, nx = -t[1] / tl, ny = t[0] / tl;
+    for (const [o, z, nn, nz, u] of prof){ pos.push(C[i].x + nx * o, C[i].y + ny * o, z); nor.push(nx * nn, ny * nn, nz); uv.push(u, S[i]); }
+    for (const u of [-1, 0, 1]){ gpos.push(C[i].x + nx * gw * u, C[i].y + ny * gw * u, -w - 0.03); gnor.push(0, 0, 1); guv.push(u, S[i]); }
+  }
+  for (let i = 0; i < n - 1; i++){
+    for (let k = 0; k < m - 1; k++){ const a = i * m + k, b = a + 1, c = a + m, e = c + 1; idx.push(a, c, b, b, c, e); }
+    for (let k = 0; k < 2; k++){ const a = i * 3 + k, b = a + 1, c = a + 3, e = c + 1; gidx.push(a, c, b, b, c, e); }
+  }
+  const mk = (P, N, U, I) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); return g; };
+  return { geo: mk(pos, nor, uv, idx), glow: mk(gpos, gnor, guv, gidx), len: S[n - 1] };
+}
+function troughMaterial(c){
+  const col = lin(valveColorHex(c)), white = new THREE.Color(1, 1, 1);
+  return new THREE.ShaderMaterial({ vertexShader: SH_TROUGH_VERT, fragmentShader: SH_TROUGH + COLD, side: THREE.DoubleSide,
+    uniforms: { uCol: { value: c ? col : lin(VIEW.CLEAR_TROUGH) }, uStripe: { value: c ? col.clone().lerp(white, 0.5) : lin(VIEW.CLEAR_STRIPE) },
+      uRim: { value: c ? col.clone().multiplyScalar(0.42) : lin(VIEW.CLEAR_RIM) }, uLight: { value: LIGHT_DIR }, uTime: { value: 0 }, uPhase: { value: 0 },
+      uGlow: { value: 0 }, uDim: { value: 0 }, uFlowA: { value: -1 }, uFlowB: { value: -1 }, uSandCol: { value: new THREE.Color(1, 1, 1) } } });
+}
+// Жёлоб клапана по ломаной valvePath: начало прячется под трубкой подковы, у входа подковы-приёмника конец — над её трубкой.
+// Короткие (0,05) вертикальные хвостики у трубок выбрасываем: на них изгиб сложил бы жёлоб.
+function makeTrough(P, c, toJar){
+  const Q = P.map(p => ({ x: p.x, y: p.y })), own = (m) => { m.userData.ownMat = true; m.userData.ownGeo = true; return m; };
+  Q[0].y -= CFG.TUBE_R * 0.75;
+  if (!toJar) Q[Q.length - 1].y += CFG.TUBE_R * 0.75;
+  if (Q.length > 2 && Math.hypot(Q[1].x - Q[0].x, Q[1].y - Q[0].y) < 0.12) Q.splice(1, 1);
+  if (Q.length > 2 && Math.hypot(Q[Q.length - 1].x - Q[Q.length - 2].x, Q[Q.length - 1].y - Q[Q.length - 2].y) < 0.12) Q.splice(Q.length - 2, 1);
+  const C = troughCurve(Q), T = troughGeometry(C, VIEW.TROUGH_W, VIEW.TROUGH_WI, VIEW.GLOW_W);
+  const mesh = own(new THREE.Mesh(T.geo, troughMaterial(c))); mesh.renderOrder = 1;
+  const glow = own(new THREE.Mesh(T.glow, new THREE.ShaderMaterial({ vertexShader: SH_TROUGH_VERT, fragmentShader: SH_GLOW + COLD, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { uCol: { value: lin(valveColorHex(c)) }, uGlow: { value: 0 }, uTime: { value: 0 } } })));
+  glow.renderOrder = 0; glow.visible = false;
+  return { mesh, glow, curve: C, len: T.len, off: Math.hypot(C[0].x - P[0].x, C[0].y - P[0].y) };
+}
+function polyAt(pl, s, out){ s = Math.max(0, Math.min(pl.len, s)); let i = 1; while (i < pl.S.length - 1 && pl.S[i] < s) i++; const k = (s - pl.S[i - 1]) / Math.max(1e-6, pl.S[i] - pl.S[i - 1]); return out.lerpVectors(pl.P[i - 1], pl.P[i], k); }
+
+// --- сборка уровня ---
+function disposeLevel(){
+  const lv = R3.level; if (!lv) return;
+  R3.scene.remove(lv.root);
+  lv.root.traverse(o => { if (o.isMesh && o.userData.ownGeo) o.geometry.dispose(); if (o.isMesh && o.userData.ownMat) o.material.dispose(); });
+  R3.level = null;
+}
+// Подкова в локальных координатах (положение o = 0): стекло, две заглушки на концах, 6 доз песка (видны по числу доз в цепочке).
+function makeHorseshoe(ri){
+  const rot = new THREE.Group(), own = (m) => { m.userData.ownMat = true; return m; };
+  const back = new THREE.Mesh(R3.geo.glass, R3.mat.glassBack); back.renderOrder = 2; rot.add(back);
+  const front = new THREE.Mesh(R3.geo.glass, R3.mat.glassFront); front.renderOrder = 3; rot.add(front);
+  const ends = [];
+  for (const e of [0, 1]){                          // заглушки: полусфера наружу по касательной; устье — кольцо-кромка на конце
+    const deg = endDeg(0, e), p = rimAt({ x: 0, y: 0 }, deg), dir = e ? 1 : -1;      // E0 смотрит против часовой, E1 — по часовой (наружу из дуги)
+    const tan = new THREE.Vector3(-Math.cos(deg * DEG), Math.sin(deg * DEG), 0).multiplyScalar(-dir), caps = [];
+    for (const [m, ro] of [[R3.mat.glassBack, 2], [R3.mat.glassFront, 3]]){ const c = new THREE.Mesh(R3.geo.cap, m); c.position.set(p.x, p.y, 0); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan); c.renderOrder = ro; rot.add(c); caps.push(c); }
+    const lip = own(new THREE.Mesh(R3.geo.lip, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.15, metalness: 0.1, roughness: 0.35 })));
+    lip.position.set(p.x, p.y, 0); lip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan); lip.renderOrder = 3; rot.add(lip);
+    ends.push({ caps, lip, k: 0, flash: 0 });
+  }
+  const doses = [];
+  for (let i = 0; i < CFG.RING_CAP + 2; i++){ const d = own(new THREE.Mesh(R3.geo.dose, sandMaterial('b'))); d.renderOrder = 1; d.visible = false; rot.add(d); doses.push(d); }
+  return { rot, doses, ends };
+}
+function buildLevel(L, noWarm){
+  if (!R3) return;
+  disposeLevel();
+  const root = new THREE.Group(), lv = { L, root, rings: [], jars: [], valves: [] };
+  const own = (m) => { m.userData.ownMat = true; return m; };
+  L.rings.forEach((r, ri) => {
+    const g = new THREE.Group(); g.position.set(r.x, r.y, 0);
+    const sh = new THREE.Mesh(R3.geo.plane, R3.mat.ringShadow); sh.scale.setScalar(3.1); sh.position.set(r.x + 0.22, r.y - 0.3, -5.9); sh.renderOrder = -5; root.add(sh);
+    for (let k = 0; k < CFG.POS; k++){          // щелчки — точки по ободу на полушагах, где встают концы (неподвижны)
+      const p = rimAt({ x: 0, y: 0 }, -22.5 + 45 * k), d = new THREE.Mesh(R3.geo.dot, R3.mat.dot), s = (CFG.RING_R + CFG.TUBE_R + 0.085) / CFG.RING_R;
+      d.position.set(p.x * s, p.y * s, -0.02); d.scale.setScalar(0.042); d.renderOrder = 0; g.add(d);
+    }
+    const hs = makeHorseshoe(ri); g.add(hs.rot);
+    // устье: мягкое свечение у выпуска, где сейчас стоит конец (неподвижно, по точкам BL/BR)
+    const mouths = {};
+    for (const at of ['BL', 'BR']){
+      const v = valveAt(L, ri, at), p = rimAt({ x: 0, y: 0 }, SPOT_DEG[at]);
+      const m = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('soft'), color: v ? (v.c ? lin(COLORS[v.c].hex) : new THREE.Color('#ffc928')) : new THREE.Color(1, 1, 1), transparent: true, depthWrite: false, opacity: 0, blending: THREE.AdditiveBlending })));
+      m.position.set(p.x, p.y, 0.3); m.scale.setScalar(0.62); m.renderOrder = 0; m.visible = false; g.add(m); mouths[at] = { m, v, k: 0 };
+    }
+    let lock = null, tag = null;
+    if (r.lock){
+      lock = makeLock(); lock.position.set(0, 0.04, 0.3); g.add(lock);
+      tag = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: labelTexture(r.lock), transparent: true, depthTest: false })));
+      tag.scale.setScalar(0.32); tag.position.set(0.26, -0.2, 0.5); tag.renderOrder = 6; g.add(tag);
+    }
+    root.add(g);
+    const cont = G.s ? G.s.ang[ri] : r.o, n = (G.view ? G.view.rings[ri] : [...r.fill]).length, p0 = restOffset(cont, n);
+    lv.rings.push({ id: r.id, g, rot: hs.rot, doses: hs.doses, ends: hs.ends, mouths, pop: 0, lock, tag, cont, vis: cont, anim: null, shake: 0, unlocked: false, p: p0, pT: p0, slideAt: 0 });
+  });
+  // банки на полке, с воронкой цвета банки
+  const xs = L.jars.map(j => j.x), minX = Math.min(...xs), maxX = Math.max(...xs);
+  const shelf = makeShelf(maxX - minX + CFG.JAR_W + 0.9), ssz = shelf.userData.size || new THREE.Vector3(1, 0.3, 1);
+  shelf.position.set((minX + maxX) / 2, CFG.JAR_FLOOR - ssz.y / 2 + VIEW.SHELF_SINK, 0.05); root.add(shelf);
+  lv.shelfBottom = CFG.JAR_FLOOR - ssz.y;
+  L.jars.forEach((j, ji) => {
+    const h = jarHeight(j.cap), r = CFG.JAR_W / 2;
+    if (!R3.geo.jar[j.cap]) R3.geo.jar[j.cap] = new THREE.LatheGeometry(jarProfile(h, r), 40);
+    if (!R3.geo.jarSand[j.cap]) R3.geo.jarSand[j.cap] = new THREE.LatheGeometry(sandJarProfile(r * 0.82), 36).scale(1, h / 2.0 * 0.92, 1);
+    const g = new THREE.Group(); g.position.set(j.x, CFG.JAR_FLOOR, 0);
+    const sand = own(new THREE.Mesh(R3.geo.jarSand[j.cap], heapMaterial(j.c, j.x))); sand.renderOrder = 1; g.add(sand);
+    const back = new THREE.Mesh(R3.geo.jar[j.cap], R3.mat.glassBack); back.renderOrder = 2; g.add(back);
+    const front = new THREE.Mesh(R3.geo.jar[j.cap], R3.mat.glassFront); front.renderOrder = 3; g.add(front);
+    for (let k = 1; k < j.cap; k++){         // деления — по дозе
+      const t = new THREE.Mesh(R3.geo.plane, R3.mat.line); t.scale.set(0.12, 0.022, 1); t.position.set(-r * 0.62, 0.04 + k * CFG.JAR_DOSE_H, r * 0.9); t.renderOrder = 5; g.add(t);
+    }
+    const lab = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: labelTexture(j.c), transparent: true, depthWrite: false })));
+    lab.scale.setScalar(0.34); lab.position.set(0, Math.min(h * 0.42, 0.4), r + 0.02); lab.renderOrder = 5; g.add(lab);
+    const funnel = new THREE.Mesh(R3.geo.funnel, funnelMat(j.c)); funnel.position.y = h; funnel.renderOrder = 3; g.add(funnel);
+    const lid = makeLid(j.c), lsz = lid.userData.size || new THREE.Vector3(0.8, 0.16, 0.8);
+    const lidHome = new THREE.Vector3(0, h + lsz.y * 0.42, 0), lidOpen = new THREE.Vector3(0, h + VIEW.LID_HOVER, 0.1);
+    lid.position.copy(lidOpen); lid.visible = false; g.add(lid);
+    const blob = new THREE.Mesh(R3.geo.plane, R3.mat.blob); blob.scale.set(1.25, 0.5, 1); blob.rotation.x = -Math.PI / 2; blob.position.set(0, 0.005, 0.1); g.add(blob);
+    root.add(g);
+    const wave = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('halo'), color: lin(COLORS[j.c].hex), transparent: true, depthWrite: false })));
+    wave.position.set(j.x, CFG.JAR_FLOOR + h + 0.1, 0.5); wave.visible = false; wave.renderOrder = 5; root.add(wave);
+    lv.jars.push({ id: j.id, g, sand, funnel, lid, lidHome, lidOpen, closed: false, h, V: 0, bump: 0, wave, order: 0 });
+  });
+  // клапаны: цветная муфта на выпуске + вентиль Tripo, цветной жёлоб с шевронами, муфта на входе подковы-приёмника
+  L.valves.forEach((v, vi) => {
+    const P = valvePath(L, v), cm = collarMat(v.c), g = new THREE.Group(), toJar = !!jarById(L, v.to);
+    g.add(collarAt(P[0], SPOT_DEG[v.at], cm));
+    const tr = makeTrough(P, v.c, toJar);
+    tr.mesh.position.z = vi * 0.004; tr.glow.position.z = vi * 0.004;       // дороги, сходящиеся у одной воронки, не мерцают
+    g.add(tr.mesh, tr.glow);
+    // вентиль: на длинной дороге — поверх начала жёлоба; на короткой (меж подков 0,35) он закрыл бы весь жёлоб — сбоку, снаружи, на штоке
+    const wheel = makeWheel(v.c), plen = P.slice(1).reduce((a, q, i) => a + Math.hypot(q.x - P[i].x, q.y - P[i].y), 0), side = plen < VIEW.SHORT_ROUTE ? (v.at === 'BL' ? -1 : 1) : 0;
+    wheel.position.set(P[0].x + side * VIEW.WHEEL_SIDE_X, P[0].y - (side ? VIEW.WHEEL_SIDE_Y : CFG.TUBE_R + 0.12), 0.16); g.add(wheel);
+    if (side){ const st = new THREE.Mesh(R3.geo.stem, R3.mat.brass), x0 = P[0].x + side * (VIEW.TROUGH_W - 0.02), x1 = wheel.position.x;
+      st.scale.set(1, Math.abs(x1 - x0), 1); st.rotation.z = Math.PI / 2; st.position.set((x0 + x1) / 2, wheel.position.y, 0.06); g.add(st); }
+    const end = P[P.length - 1];
+    if (!toJar) g.add(collarAt(end, SPOT_DEG[v.in], cm));
+    else { const rim = new THREE.Mesh(R3.geo.rim, cm); rim.scale.setScalar(VIEW.TROUGH_W * 1.25); rim.rotation.x = Math.PI / 2; rim.position.set(end.x, end.y + 0.02, 0); g.add(rim); }
+    // куда ведёт дорога: ореол цвета клапана над воронкой банки или над входом подковы — виден при подсветке
+    const eg = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('halo'), color: lin(valveColorHex(v.c)), transparent: true, depthWrite: false })));
+    const endS = toJar ? 1.25 : 0.8; eg.scale.setScalar(endS); eg.position.set(end.x, end.y + (toJar ? 0.05 : 0), 0.35); eg.renderOrder = 4; eg.visible = false; g.add(eg);
+    root.add(g);
+    lv.valves.push({ id: v.id, g, wheel, wheelBase: wheel.rotation.z, v, mat: tr.mesh.material, glowMesh: tr.glow, endGlow: eg, endS, curve: tr.curve, len: tr.len, off: tr.off, glow: 0, dim: 0, phase: vi * 0.37 });
+  });
+  // заглушки: выпуски подковы без клапана — видны, пока палец на подкове
+  L.rings.forEach((r, ri) => {
+    lv.rings[ri].plugs = []; lv.rings[ri].plugK = 0;
+    for (const at of ['BL', 'BR']){
+      if (valveAt(L, ri, at)) continue;
+      const p = spotPos(r, at), m = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('plug'), transparent: true, depthTest: false, opacity: 0 })));
+      m.position.set(p.x, p.y - CFG.TUBE_R - 0.13, 0.5); m.scale.setScalar(0.3); m.renderOrder = 6; m.visible = false; root.add(m); lv.rings[ri].plugs.push(m);
+    }
+  });
+  R3.scene.add(root); R3.level = lv;
+  // призрак следующего щелчка: контур подковы, ореол над клапаном, крестик «не пройдёт»
+  const ghost = new THREE.Mesh(R3.geo.ghost, R3.mat.ghost); ghost.visible = false; ghost.renderOrder = 5; root.add(ghost);
+  const halo = new THREE.Mesh(R3.geo.plane, R3.mat.halo); halo.visible = false; halo.renderOrder = 4; root.add(halo);
+  const cross = new THREE.Mesh(R3.geo.plane, R3.mat.cross); cross.scale.setScalar(0.34); cross.visible = false; cross.renderOrder = 7; root.add(cross);
+  Object.assign(lv, { ghost, halo, cross });
+  // кадр по полю: подковы, трубки, банки
+  let x0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of L.rings){ x0 = Math.min(x0, r.x - CFG.RING_R - CFG.TUBE_R - 0.15); x1 = Math.max(x1, r.x + CFG.RING_R + CFG.TUBE_R + 0.15); y1 = Math.max(y1, r.y + CFG.RING_R + CFG.TUBE_R + 0.15); }
+  for (const j of L.jars){ x0 = Math.min(x0, j.x - CFG.JAR_W / 2 - 0.3); x1 = Math.max(x1, j.x + CFG.JAR_W / 2 + 0.3); }
+  const padW = Math.max(0, VIEW.MIN_W - (x1 - x0)) / 2;
+  lv.box = { x0: x0 - VIEW.MARGIN_X - padW, x1: x1 + VIEW.MARGIN_X + padW, y0: lv.shelfBottom - 0.2, y1: y1 + VIEW.MARGIN_TOP + 0.5 };
+  frameCamera();
+  syncView(now());
+  if (!noWarm) warmUp();
+  log('event', 'level.built', 'rings=' + L.rings.length + ' jars=' + L.jars.length + ' valves=' + L.valves.length);
+}
+function frameCamera(){
+  if (!R3 || !R3.level) return;
+  const b = R3.level.box, cam = R3.camera, w = b.x1 - b.x0, h = b.y1 - b.y0, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  const t = Math.tan(THREE.MathUtils.degToRad(VIEW.FOV / 2)), dist = Math.max(h / 2 / t, w / 2 / (t * cam.aspect)) + 0.6;
+  const hv = 2 * t * (dist - 0.6), cyy = hv > h ? b.y0 + hv / 2 - 0.15 : cy;
+  cam.position.set(cx, cyy + Math.sin(VIEW.TILT) * dist, Math.cos(VIEW.TILT) * dist); cam.lookAt(cx, cyy, 0); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  const bgH = 2 * Math.tan(THREE.MathUtils.degToRad(VIEW.FOV / 2)) * (dist + 6) * 1.15;
+  R3.bg.scale.set(bgH * cam.aspect * 1.2, bgH, 1); R3.bg.position.set(cx, cyy, -6);
+}
+// Прогрев: один раз нарисовать то, что появится позже (дозы, призрак, крестик, ореол, песчинки), потом скрыть.
+function warmUp(){
+  const lv = R3.level; if (!lv) return;
+  const show = [lv.ghost, lv.halo, lv.cross, ...lv.rings.flatMap(R => R.doses.concat(R.plugs, Object.values(R.mouths).map(M => M.m))), ...lv.jars.map(J => J.lid), ...lv.jars.map(J => J.wave), ...lv.valves.flatMap(V => [V.glowMesh, V.endGlow])];
+  const was = show.map(o => o.visible);
+  show.forEach(o => { o.visible = true; });
+  R3.grains.count = 1; R3.drops.count = 1; R3.conf.count = 1; R3.stars.count = 1;
+  R3.renderer.render(R3.scene, R3.camera);
+  show.forEach((o, i) => { o.visible = was[i]; });
+  R3.grains.count = 0; R3.drops.count = 0; R3.conf.count = 0; R3.stars.count = 0;
+}
+
+// --- отображение: углы подков, цепочки песка по «видимому» состоянию + текущему пересыпанию ---
+// Доза рисуется дугой 45°: позиция pos (ячейка от E0, дробная) → поворот; lo..hi — видимая часть (0 — сторона E1, 1 — сторона E0).
+function placeDose(mesh, c, pos, lo, hi, time){
+  const u = mesh.material.uniforms;
+  if (hi - lo < 0.002){ mesh.visible = false; return; }
+  mesh.visible = true; mesh.rotation.z = -(112.5 + 45 * pos) * DEG;
+  if (mesh.userData.c !== c){ u.uCol.value.set(COLORS[c].hex); mesh.userData.c = c; }
+  u.uLo.value = lo; u.uHi.value = hi; u.uTime.value = time; u.uBlink.value = 0; u.uGhost.value = 0;
+}
+// Угол подковы на экране (в щелчках, непрерывно): за пальцем при драге, с отскоком после тапа, с дрожью у запертой.
+function updateRings(tNow){
+  const lv = R3.level, ts = G.timeScale, P = G.press;
+  lv.rings.forEach((R, ri) => {
+    let base = R.cont;
+    if (R.anim){ const k = (tNow - R.anim.t0) / (R.anim.ms / ts); if (k >= 1) R.anim = null; else base = R.anim.from + (R.anim.to - R.anim.from) * (R.anim.back ? ease.back(Math.max(0, k)) : ease.out(Math.max(0, k))); }
+    let off = 0;
+    if (P && P.ri === ri && P.drag){ off = P.acc / STEP; off = G.pour ? Math.max(-0.12, Math.min(0.12, off)) : Math.max(-0.62, Math.min(0.62, off)); }
+    if (R.shake){ const k = (tNow - R.shake) / (360 / ts); if (k >= 1) R.shake = 0; else off += 0.07 * Math.sin(k * Math.PI * 6) * (1 - k); }
+    if (G.spinDemo) off += (tNow - G.spinDemo) / 1000 * 1.6 * (ri % 2 ? -1 : 1);
+    R.vis = base + off;
+    R.rot.rotation.z = -R.vis * STEP;
+    if (R.pop){ const k = (tNow - R.pop) / (200 / ts); if (k >= 1){ R.pop = 0; R.rot.scale.setScalar(1); } else R.rot.scale.setScalar(1 + 0.04 * Math.sin(k * Math.PI) * (1 - k * 0.5)); }
+  });
+}
+let lastSync = 0;
+function syncView(tNow){
+  const lv = R3 && R3.level; if (!lv || !G.view) return;
+  const P = G.pour, L = G.view.L, time = tNow / 1000, dt = Math.min(0.1, Math.max(0, (tNow - (lastSync || tNow)) / 1000)) * G.timeScale; lastSync = tNow;
+  let t = 0;
+  if (P) t = Math.max(0, Math.min(P.info.amount, (tNow - P.tA) / (CFG.POUR_MS / G.timeScale)));
+  updateRings(tNow);
+  const cap = CFG.RING_CAP;
+  lv.rings.forEach((R, ri) => {
+    const arr = G.view.rings[ri];
+    // цепочка съезжает к нижней точке (ядро: сыплется всегда с нижнего конца; здесь — только картинка)
+    if (!(P && (P.info.src === ri || P.info.ti === ri))){ const o = posNorm(Math.round(R.vis)); const pt = restOffset(o, arr.length, R.pT); if (pt !== R.pT){ R.pT = pt; if (tNow - R.slideAt > 250 && arr.length){ Snd.slide(); R.slideAt = tNow; } } }
+    const d = R.pT - R.p, mv = VIEW.SLIDE_SPEED * dt; R.p = Math.abs(d) <= mv ? R.pT : R.p + Math.sign(d) * mv;
+    let k = 0;
+    const put = (c, pos, lo, hi) => { if (k < R.doses.length) placeDose(R.doses[k++], c, pos, lo, hi, time); };
+    if (P && P.info.src === ri){
+      arr.forEach((c, j) => {
+        if (P.info.srcEnd === 0){ const pos = R.p + j - t; put(c, pos, 0, Math.max(0, Math.min(1, 1 + pos))); }
+        else { const pos = R.p + j + t; put(c, pos, Math.max(0, Math.min(1, pos + 1 - cap)), 1); }
+      });
+    } else arr.forEach((c, j) => put(c, R.p + j, 0, 1));
+    if (P && P.info.ti === ri){                    // приёмник: доза «наползает» со стороны входа
+      for (let q = 0; q < P.info.amount; q++){ const gq = Math.max(0, Math.min(1, t - q - 0.35));
+        if (P.info.toEnd === 0) put(P.info.color, R.pT - 1 - q, 1 - gq, 1); else put(P.info.color, R.pT + arr.length + q, 0, gq); }
+    }
+    for (; k < R.doses.length; k++) R.doses[k].visible = false;
+  });
+  lv.jars.forEach((J, ji) => {
+    let V = G.view.jars[ji];
+    if (P && P.info.ji === ji) V += Math.max(0, t - 0.25);
+    const u = J.sand.material.uniforms, j = L.jars[ji];
+    u.uTop.value = V > 0.001 ? CFG.JAR_FLOOR + 0.04 + V * CFG.JAR_DOSE_H - VIEW.HEAP_H * 0.5 : -99; u.uHeap.value = Math.min(VIEW.HEAP_H, V * 0.1 + 0.04);
+    u.uTime.value = time; u.uGhost.value = 0;
+    J.V = V;
+    if (J.bump){ const b = Math.min(1, (tNow - J.bump) / 220); const s = 1 + 0.025 * Math.sin(b * Math.PI) ; if (!J.closed) J.g.scale.set(s, 2 - s, s); if (b >= 1){ J.bump = 0; if (!J.closed) J.g.scale.set(1, 1, 1); } }
+  });
+  applyPreview(time);
+  applyRoutes(tNow, time);
+}
+// Дороги: палец на подкове (или подсказка) — её жёлоба светятся цветом клапана, у цели ореол, остальные дороги приглушены,
+// на выпусках без клапана — заглушки. Шевроны бегут всегда, на дороге следующего щелчка и при пересыпании — быстрее.
+// Во время пересыпания по дну жёлоба бежит полоса песка (голова и хвост — как у струйки песчинок).
+let lastRoutes = 0;
+function applyRoutes(tNow, time){
+  const lv = R3.level, L = G.view.L, dt = Math.min(0.1, Math.max(0, (tNow - (lastRoutes || tNow)) / 1000)); lastRoutes = tNow;
+  const fid = lv.focus >= 0 ? L.rings[lv.focus].id : null, pour = G.pour, k = Math.min(1, dt * 14), ts = G.timeScale;
+  for (const V of lv.valves){
+    const mine = fid !== null && V.v.from === fid, tgt = mine && V.id === lv.pvValve, pouring = !!(pour && pour.info.valve === V.id);
+    V.glow += ((mine ? (tgt ? 1 : 0.85) : 0) - V.glow) * k;
+    V.dim += ((fid !== null && !mine ? 1 : 0) - V.dim) * k;
+    V.phase += (tgt || pouring ? VIEW.CHEV_FAST : VIEW.CHEV_SPEED) * dt * ts;
+    const u = V.mat.uniforms; u.uTime.value = time; u.uPhase.value = V.phase; u.uGlow.value = V.glow * 0.7; u.uDim.value = V.dim * 0.5;
+    const on = V.glow > 0.02; V.glowMesh.visible = on; V.endGlow.visible = on;
+    if (on){ V.glowMesh.material.uniforms.uGlow.value = V.glow; V.glowMesh.material.uniforms.uTime.value = time;
+      V.endGlow.material.opacity = Math.min(1, V.glow * 1.2); V.endGlow.scale.setScalar(V.endS * (1 + 0.08 * Math.sin(time * 7))); }
+    if (pouring && pour.path){
+      const tS = pour.tA - 120 / ts, tE = pour.tB - 60 / ts, at = (t0) => { const t = Math.max(0, (tNow - t0) / 1000 * ts); return VIEW.GRAIN_SPEED * t + 2.2 * t * t - V.off; };
+      u.uFlowB.value = tNow >= tS ? at(tS) : -1; u.uFlowA.value = tNow >= tE ? at(tE) : -0.5;
+      if (V.sandC !== pour.info.color){ u.uSandCol.value.set(COLORS[pour.info.color].hex); V.sandC = pour.info.color; }
+    } else { u.uFlowA.value = -1; u.uFlowB.value = -1; }
+  }
+  lv.rings.forEach((R, ri) => {
+    if (!R.plugs.length) return;
+    R.plugK += ((ri === lv.focus ? 1 : 0) - R.plugK) * k;
+    for (const m of R.plugs){ m.visible = R.plugK > 0.02; m.material.opacity = R.plugK; m.scale.setScalar(0.3 * (0.7 + 0.3 * R.plugK)); }
+  });
+  applyMouths(tNow, time, k);
+}
+// Устье: конец, который стоит на выпуске (BL/BR), — «отсюда сыплется». Кромка этого конца — цвета клапана и чуть крупнее,
+// стеклянная заглушка снята (конец открыт), за устьем — мягкое свечение цвета клапана. Без клапана — кромка серая, конец закрыт.
+// Второй конец — тонкая белая кромка: видно, что это тоже отверстие. При пересыпании кромка вспыхивает.
+const _lipC = new THREE.Color(), _white = new THREE.Color(1, 1, 1), _grey = new THREE.Color('#8f86b8'), _gold = new THREE.Color('#ffc928');
+const mouthColor = (v) => v.c ? lin(COLORS[v.c].hex) : _gold;      // у прозрачного клапана устье золотое: белое не отличить от простой кромки
+function applyMouths(tNow, time, k){
+  const lv = R3.level, L = G.view.L;
+  lv.rings.forEach((R, ri) => {
+    const o = posNorm(Math.round(R.vis)), E = END_AT[o], seated = OUTLET[E.spot] ? E.e : -1, v = seated >= 0 ? valveAt(L, ri, E.spot) : null;
+    const has = (G.view.rings[ri] || []).length > 0, settled = Math.abs(R.vis - Math.round(R.vis)) < 0.18;
+    R.ends.forEach((N, e) => {
+      const low = e === seated && settled;
+      N.k += ((low ? 1 : 0) - N.k) * k;
+      const fl = N.flash ? Math.max(0, 1 - (tNow - N.flash) / (380 / G.timeScale)) : 0; if (!fl) N.flash = 0;
+      _lipC.copy(low ? (v ? mouthColor(v) : _grey) : _white);
+      N.lip.material.color.lerpColors(_white, _lipC, N.k); N.lip.material.emissive.copy(N.lip.material.color);
+      N.lip.material.emissiveIntensity = 0.12 + (v ? N.k * (0.4 + 0.15 * Math.sin(time * 3.2)) : 0) + 0.9 * fl;
+      N.lip.scale.set(1 + 0.12 * N.k * (v ? 1 : 0.3) + 0.35 * fl, 1 + 0.12 * N.k * (v ? 1 : 0.3) + 0.35 * fl, 1 + 0.9 * N.k * (v ? 1 : 0) + fl);
+      const open = low && !!v; N.caps.forEach(c => { c.visible = !open; });
+    });
+    for (const at of ['BL', 'BR']){
+      const M = R.mouths[at], on = M.v && E.spot === at && settled && has;
+      M.k += ((on ? 1 : 0) - M.k) * k;
+      M.m.visible = M.k > 0.02; M.m.material.opacity = M.k * (0.38 + 0.12 * Math.sin(time * 3.2));
+    }
+  });
+}
+// Превью: пока палец на подкове — контур подковы в следующем щелчке по направлению драга (у тапа — по часовой) и что пересыплется:
+// уходящие дозы мигают, ореол над клапаном, «призрак» прихода в банке. Не пройдёт — крестик на клапане. Подсказка показывает то же.
+function previewMove(){
+  const P = G.press;
+  if (P && !G.pour) return { m: moveOf(P.ri, P.dir || 1), hint: false };
+  if (G.hint && now() < G.hint.until && !G.pour && !P) return { m: G.hint.m, hint: true };
+  return null;
+}
+function applyPreview(time){
+  const lv = R3.level, L = G.view.L;
+  lv.ghost.visible = false; lv.halo.visible = false; lv.cross.visible = false; lv.pvValve = null; lv.focus = G.press ? G.press.ri : -1;
+  const pm = previewMove(); if (!pm) return;
+  const info = moveInfo(G.s, pm.m), ri = pm.m >> 1, r = L.rings[ri];
+  if (pm.hint) lv.focus = ri;
+  if (info.code === 'locked') return;
+  lv.pvValve = info.valve || null;
+  const pulse = 1 + 0.1 * Math.sin(time * 9);
+  lv.ghost.visible = true; lv.ghost.position.set(r.x, r.y, 0.01); lv.ghost.rotation.z = -(lv.rings[ri].cont + info.dir) * STEP;
+  const valve = info.valve ? L.valves.find(v => v.id === info.valve) : null;
+  if (!valve) return;
+  const p0 = spotPos(ringById(L, valve.from), valve.at);
+  if (info.code === 'ok'){
+    lv.halo.visible = true; lv.halo.position.set(p0.x, p0.y - 0.05, 0.3); lv.halo.scale.setScalar(0.75 * pulse);
+    const R = lv.rings[info.src], arr = G.view.rings[info.src];         // уходящие дозы мигают
+    for (let q = 0; q < info.amount; q++){ const j = info.srcEnd ? arr.length - 1 - q : q; if (R.doses[j]) R.doses[j].material.uniforms.uBlink.value = 1; }
+    if (info.ji !== undefined){ const J = lv.jars[info.ji], u = J.sand.material.uniforms; u.uGhost.value = 1; u.uGhostC.value.set(COLORS[info.color].hex);
+      u.uGhostTop.value = CFG.JAR_FLOOR + 0.04 + (J.V + info.amount) * CFG.JAR_DOSE_H - VIEW.HEAP_H * 0.5; if (u.uTop.value < -50) u.uTop.value = CFG.JAR_FLOOR + 0.02; }
+    else { const T = lv.rings[info.ti], q = spotPos(ringById(L, valve.to), valve.in); lv.cross.visible = false; lv.halo.visible = true; lv.halo.position.set(q.x, q.y, 0.3); }
+  } else if (['wrongValve', 'wrongJar', 'jarFull', 'closedBelow', 'ringFull'].includes(info.code)){
+    lv.cross.visible = true; lv.cross.position.set(p0.x, p0.y - 0.2, 0.6); lv.cross.scale.setScalar(0.34 * pulse);
+  }
+}
+
+// --- ход: щелчок подковы → ядро сразу, анимация догоняет ---
+// how: 'tap' (с отскоком), 'drag' (подкова уже за пальцем), 'key'/'auto' (как тап)
+function turnRing(ri, dir, how){
+  if (!G.s || G.screen !== 'game' || G.pour || G.ending) return false;
+  const lv = R3 && R3.level, m = moveOf(ri, dir), info = moveInfo(G.s, m);
+  log('input', 'turn', 'ring=' + (G.s.L.rings[ri] || {}).id + ' dir=' + dir + ' how=' + how + ' k=' + info.k + ' code=' + info.code);
+  if (info.code === 'none') return false;
+  if (info.code === 'locked'){ Snd.deny(); buzz(15); toast(denyText(info)); if (lv) lv.rings[ri].shake = now(); return false; }
+  hideDead();
+  const before = G.s; G.s = applyMove(G.s, m); G.hint = null;
+  if (lv){ const R = lv.rings[ri]; const from = R.vis; R.cont += dir; R.pop = now(); if (how !== 'drag') R.anim = { from, to: R.cont, t0: now(), ms: CFG.CLICK_MS, back: true }; }
+  Snd.ratchet(dir); buzz(6);
+  if (info.code === 'ok'){
+    G.view = cloneState(before); G.view.ang = G.s.ang.slice();
+    const ts = G.timeScale, t0 = now() + (how === 'drag' ? 60 : CFG.CLICK_MS) / ts, tA = t0 + (CFG.VALVE_MS + 140) / ts, tB = tA + info.amount * CFG.POUR_MS / ts;
+    G.pour = { info, t0, tA, tB, tEnd: tB + 420 / ts, opened: false, nextGrain: tA - 120 / ts, landed: 0 };
+    if (lv){
+      const S = lv.rings[info.src]; S.pT = info.srcEnd === 0 ? 0 : CFG.RING_CAP - before.rings[info.src].length;     // цепочка прижата к выпуску
+      if (info.ti !== undefined){ const D = lv.rings[info.ti], n = before.rings[info.ti].length;      // цепочка приёмника сразу едет туда, где ляжет с новыми дозами
+        const pf = restOffset(G.s.ang[info.ti], n + info.amount, info.toEnd === 0 ? D.pT - info.amount : D.pT); D.pT = info.toEnd === 0 ? pf + info.amount : pf; }
+      G.pour.path = pourPath(info);
+    }
+    if (how === 'drag' && G.press && lv){ const R = lv.rings[ri]; R.anim = { from: R.vis, to: R.cont, t0: now(), ms: 90, back: false }; G.press.acc = 0; }
+    G.pour.fillFrac = info.ji !== undefined ? before.jars[info.ji] / G.s.L.jars[info.ji].cap : before.rings[info.ti].length / CFG.RING_CAP;
+    log('fx.start', 'pour', 'from=' + info.srcId + ' end=E' + info.srcEnd + ' valve=' + info.valve + ' to=' + info.to + ' color=' + info.color + ' amount=' + info.amount + (info.feed ? ' feed' : ''));
+  } else {
+    G.view = cloneState(G.s);
+    const t = denyText(info); if (t && info.at && OUTLET[info.at]) toast(t, 1500);
+    const reason = deadReason(G.s); if (reason) showDead(reason);
+  }
+  hud();
+  return true;
+}
+// Путь песчинок: конец подковы → трубка клапана → в банку до горки или по трубке приёмника к его цепочке.
+function pourPath(info){
+  const L = G.s.L, v = L.valves.find(x => x.id === info.valve), V = R3.level.valves.find(x => x.id === info.valve), p0 = valvePath(L, v)[0];
+  const pts = [{ x: p0.x, y: p0.y, z: 0.02 }, ...V.curve.map(p => ({ x: p.x, y: p.y, z: VIEW.GRAIN_Z }))];
+  if (info.ji !== undefined){ const J = L.jars[info.ji], last = pts[pts.length - 1]; pts.push({ x: last.x, y: CFG.JAR_FLOOR + 0.1 + G.view.jars[info.ji] * CFG.JAR_DOSE_H, z: 0.05 }); }
+  else {                                            // по дуге приёмника от входа к концу его цепочки
+    const r = ringById(L, v.to), n = G.view.rings[info.ti].length, o = G.s.ang[info.ti], a0 = endDeg(o, info.toEnd);   // угол входа в той же развёртке, что и ячейки
+    const D = R3.level.rings[info.ti], endPos = info.toEnd === 0 ? D.pT - 0.5 : D.pT + n + 0.5;   // середина первой входящей дозы
+    const a1 = 45 * (o + endPos - 0.5);
+    for (let i = 1; i <= 10; i++){ const a = a0 + (a1 - a0) * i / 10; const p = rimAt(r, a); pts.push({ x: p.x, y: p.y, z: 0.02 }); }
+  }
+  return polyline(pts);
+}
+function denyText(info){
+  const C = (c) => COLORS[c];
+  if (info.code === 'locked') return 'Замок: сначала насыпь ' + C(info.lock).acc + ' банку';
+  if (info.code === 'wrongValve') return 'У конца ' + C(info.color).nom + ', а клапан ' + C(info.vc).nom;
+  if (info.code === 'wrongJar') return cap1(C(info.color).nom) + ' в ' + C(info.jarColor).acc + ' банку не сыплется';
+  if (info.code === 'jarFull') return 'Банка уже полна';
+  if (info.code === 'closedBelow') return 'Снизу подкова ' + info.to + ' не подставила конец';
+  if (info.code === 'ringFull') return 'Подкова ' + info.to + ' полна';
+  return '';
+}
+function finishPour(){
+  const P = G.pour, lv = R3 && R3.level; G.pour = null;
+  if (lv){                                          // смещения цепочек непрерывны: индексы доз сдвинулись
+    if (P.info.srcEnd === 1) lv.rings[P.info.src].p += P.info.amount;
+    if (P.info.ti !== undefined && P.info.toEnd === 0) lv.rings[P.info.ti].p -= P.info.amount;
+    lv.rings[P.info.src].pT = lv.rings[P.info.src].p; if (P.info.ti !== undefined) lv.rings[P.info.ti].pT = lv.rings[P.info.ti].p;
+  }
+  G.view = cloneState(G.s);
+  if (lv && !G.s.rings[P.info.src].length){ const r = G.s.L.rings[P.info.src]; starsAt(new THREE.Vector3(r.x, r.y, 0.4), '#fff6c8', 8, 1.3); Snd.ping(); }
+  if (G.press) G.press.acc = 0;                // палец продолжает с нового места — без внезапных щелчков
+  log('fx.end', 'pour', 'ring=' + P.info.srcId);
+  const L = G.s.L;
+  L.jars.forEach((J, ji) => {
+    if (G.s.jars[ji] >= J.cap && lv && !lv.jars[ji].closed){ lv.jars[ji].closed = true; G.fx.push({ kind: 'lid', ji, t0: now() }); log('fx.start', 'lid', J.id); }
+  });
+  L.rings.forEach((r, ri) => {
+    if (r.lock && lockOpen(G.s, r.lock) && lv && lv.rings[ri].lock && !lv.rings[ri].unlocked){ lv.rings[ri].unlocked = true; G.fx.push({ kind: 'unlock', ri, t0: now() + VIEW.LID_MS * 0.6 / G.timeScale }); }
+  });
+  if (isWin(G.s)){
+    G.ending = now() + VIEW.WIN_CARD_MS / G.timeScale;
+    log('event', 'level.win', 'moves=' + G.s.moves + ' par=' + G.par);
+    setTimeout(celebrate, VIEW.LID_MS * 0.8 / G.timeScale);
+    G.save.done[G.s.li] = true; G.save.level = Math.max(G.save.level, Math.min(G.s.li + 1, LEVELS.length - 1)); save();
+  } else {
+    const reason = deadReason(G.s);
+    if (reason) showDead(reason);
+  }
+  hud();
+}
+function undo(){
+  if (!G.s || G.pour || G.ending || !G.s.hist.length) return;
+  const was = G.s; G.s = undoMove(G.s); G.view = cloneState(G.s); hideDead(); log('input', 'undo', 'moves=' + G.s.moves);
+  Snd.tick();
+  const lv = R3 && R3.level;
+  if (lv){
+    lv.rings.forEach((R, ri) => {
+      const d = posNorm(G.s.ang[ri] - was.ang[ri]); if (d){ const dir = d === 1 ? 1 : -1, from = R.vis; R.cont += dir; R.anim = { from, to: R.cont, t0: now(), ms: CFG.CLICK_MS, back: false }; }
+      if (G.s.rings[ri].join('') !== was.rings[ri].join('')){ R.p = R.pT = restOffset(G.s.ang[ri], G.s.rings[ri].length); }
+    });
+    G.s.L.jars.forEach((J, ji) => { const Jv = lv.jars[ji]; if (Jv.closed && G.s.jars[ji] < J.cap){ Jv.closed = false; Jv.order = 0; Jv.lid.position.copy(Jv.lidOpen); Jv.lid.visible = false; Jv.funnel.visible = true; Jv.funnel.scale.setScalar(1); Jv.g.scale.set(1, 1, 1); } });
+    G.s.L.rings.forEach((r, ri) => { const R = lv.rings[ri]; if (R.lock && R.unlocked && !lockOpen(G.s, r.lock)){ R.unlocked = false; R.lock.visible = true; R.tag.visible = true; R.lock.position.set(0, 0.04, 0.3); R.lock.rotation.set(0, 0, 0); R.lock.scale.setScalar(1); } });
+    G.fx = G.fx.filter(f => f.kind !== 'lid' && f.kind !== 'unlock' && f.kind !== 'wave');
+  }
+  hud();
+}
+function showHint(m, ms){
+  if (m === undefined){ const sol = G.s && solve(G.s); if (!sol){ toast('Отсюда не выйти — отмени ход'); return; } m = sol[0]; }
+  G.hint = { m, until: now() + (ms || 2600) }; log('event', 'hint', 'ring=' + G.s.L.rings[m >> 1].id + ' dir=' + ((m & 1) ? 'ccw' : 'cw'));
+  toast(((m & 1) ? 'Против часовой' : 'По часовой') + ': подкова ' + G.s.L.rings[m >> 1].id, 1800);
+}
+
+// --- частицы и разовые эффекты (позиции — функция от абсолютного времени) ---
+function spawn(kind, p, v, life, size, color, t0){
+  const q = { kind, p: p.clone(), v: v.clone(), t0: t0 || now(), life: life / G.timeScale, size, color: color ? lin(color) : null };
+  if (kind === 'conf'){ q.r = [rndFx() * 6, rndFx() * 6, rndFx() * 6]; q.w = [2 + rndFx() * 6, 2 + rndFx() * 6, 1 + rndFx() * 3]; q.ph = rndFx() * 6; }
+  R3.parts.push(q);
+  if (R3.parts.length > VIEW.POOL_DROPS + VIEW.POOL_CONF + VIEW.POOL_STARS) R3.parts.shift();
+}
+// Звёздочки-искры: разлетаются и гаснут (аддитивно).
+function starsAt(p, color, n, sp){ for (let i = 0; i < n; i++){ const a = rndFx() * Math.PI * 2, v = (0.6 + rndFx() * 0.9) * (sp || 1);
+  spawn('star', p, new THREE.Vector3(Math.cos(a) * v, Math.sin(a) * v + 0.6, 0.2), 520 + rndFx() * 260, 0.13 + rndFx() * 0.1, i % 2 ? color : '#fff8d8'); } }
+const rndFx = mulberry32(99);
+function puffAt(p, color, n){ for (let i = 0; i < n; i++){ const a = rndFx() * Math.PI, sp = 0.6 + rndFx() * 1.1; spawn('drop', p, new THREE.Vector3(Math.cos(a) * sp * 0.8, Math.sin(a) * sp, 0.2 + rndFx() * 0.4), 380, 0.022 + rndFx() * 0.018, color); } }
+function confetti(){
+  const L = G.s.L, lv = R3.level, b = lv.box, cols = [...new Set(L.jars.map(j => COLORS[j.c].hex)), '#fff3a0', '#ffffff', '#ffd21f'];
+  // фонтаны из банок вверх
+  L.jars.forEach((j) => { for (let i = 0; i < 26; i++){ const a = Math.PI * (0.28 + 0.44 * rndFx()), v = 5.5 + rndFx() * 4.5;
+    spawn('conf', new THREE.Vector3(j.x, CFG.JAR_FLOOR + jarHeight(j.cap) + 0.25, 0.6), new THREE.Vector3(Math.cos(a) * v * 0.55, Math.sin(a) * v, 0.3), 2800 + rndFx() * 900, 0.14 + rndFx() * 0.07, i % 3 ? COLORS[j.c].hex : cols[i % cols.length]); } });
+  // дождь сверху во весь кадр
+  for (let i = 0; i < 120; i++){ const x = b.x0 + (b.x1 - b.x0) * rndFx();
+    spawn('conf', new THREE.Vector3(x, b.y1 + 0.2 + rndFx() * 3, 0.8 + rndFx() * 0.8), new THREE.Vector3((rndFx() - 0.5) * 1.2, -0.5 - rndFx(), 0), 4200, 0.13 + rndFx() * 0.07, cols[i % cols.length], now() + rndFx() * 500 / G.timeScale); }
+  log('fx.start', 'confetti');
+}
+// Победа: фанфары, вспышка фона, «толчок» камеры, конфетти, банки подпрыгивают волной со звоном.
+function celebrate(){
+  if (!G.s || !R3 || !R3.level || !G.ending || !isWin(G.s)) return;     // уровень уже перезапущен — не праздновать
+  Snd.fanfare(); buzz([25, 50, 25, 50, 70]);
+  G.punch = now(); G.flashBg = now();
+  confetti();
+  G.s.L.jars.forEach((j, ji) => G.fx.push({ kind: 'hop', ji, t0: now() + (280 + ji * 140) / G.timeScale }));
+  log('fx.start', 'celebrate');
+}
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _e = new THREE.Euler();
+function updateParts(tNow){
+  let nd = 0, nc = 0, ns = 0; const g = -9.0;
+  R3.parts = R3.parts.filter(q => tNow - q.t0 < q.life);
+  for (const q of R3.parts){
+    if (tNow < q.t0) continue;
+    const t = (tNow - q.t0) / 1000 * G.timeScale, k = (tNow - q.t0) / q.life;
+    if (q.kind === 'conf'){                 // бумажка: сопротивление воздуха, качается и кувыркается
+      if (nc >= VIEW.POOL_CONF) continue;
+      const c = 1.3, e = (1 - Math.exp(-c * t)) / c, G2 = 4.2;
+      _p.set(q.p.x + q.v.x * e + 0.16 * Math.sin(t * 3 + q.ph), q.p.y + q.v.y * e - (G2 / c) * (t - e), q.p.z + q.v.z * e);
+      _e.set(q.r[0] + t * q.w[0], q.r[1] + t * q.w[1], q.r[2] + t * q.w[2]); _q.setFromEuler(_e); _s.setScalar(q.size * Math.min(1, (1 - k) * 6));
+      _m.compose(_p, _q, _s); R3.conf.setMatrixAt(nc, _m); R3.conf.setColorAt(nc++, q.color || _c.setRGB(1, 1, 1)); continue;
+    }
+    if (q.kind === 'star'){
+      if (ns >= VIEW.POOL_STARS) continue;
+      const e = 1 - Math.exp(-3 * t);
+      _p.set(q.p.x + q.v.x * e / 3 * 2, q.p.y + q.v.y * e / 3 * 2, q.p.z + 0.2);
+      _e.set(0, 0, t * 2.5); _q.setFromEuler(_e); _s.setScalar(q.size * Math.sin(Math.min(1, k * 1.15) * Math.PI) * 1.3);
+      _m.compose(_p, _q, _s); R3.stars.setMatrixAt(ns, _m); R3.stars.setColorAt(ns++, q.color || _c.setRGB(1, 1, 1)); continue;
+    }
+    if (nd >= VIEW.POOL_DROPS) continue;
+    _p.set(q.p.x + q.v.x * t, q.p.y + q.v.y * t + 0.5 * g * t * t, q.p.z + q.v.z * t);
+    _q.identity(); _s.setScalar(q.size * (1 - k * 0.6)); _m.compose(_p, _q, _s); R3.drops.setMatrixAt(nd, _m); R3.drops.setColorAt(nd++, q.color || _c.setRGB(1, 1, 1));
+  }
+  for (const [M, n] of [[R3.drops, nd], [R3.conf, nc], [R3.stars, ns]]){ M.count = n; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; }
+  // песчинки струйки: бегут по пути с ускорением, у каждой — свой сдвиг поперёк и поворот
+  let ng = 0;
+  R3.stream = R3.stream.filter(q => tNow - q.t0 < q.life);
+  for (const q of R3.stream){
+    if (ng >= VIEW.POOL_GRAINS) break;
+    const t = (tNow - q.t0) / 1000 * G.timeScale, s = q.v * t + 2.2 * t * t;
+    if (s >= q.path.len){ q.life = 0; continue; }
+    polyAt(q.path, s, _p); _p.x += q.jx; _p.z += q.jz; _p.y += q.jy;
+    _e.set(q.rx + t * 9, q.ry + t * 7, 0); _q.setFromEuler(_e); _s.setScalar(q.size); _m.compose(_p, _q, _s);
+    R3.grains.setMatrixAt(ng, _m); R3.grains.setColorAt(ng++, q.color);
+  }
+  R3.grains.count = ng; R3.grains.instanceMatrix.needsUpdate = true; if (R3.grains.instanceColor) R3.grains.instanceColor.needsUpdate = true;
+}
+const ease = { out: (x) => 1 - Math.pow(1 - x, 3), inOut: (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2, back: (x) => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); } };
+function updateFx(tNow){
+  const lv = R3.level; if (!lv) return;
+  G.fx = G.fx.filter(f => {
+    const k = (tNow - f.t0) / ((f.kind === 'lid' ? VIEW.LID_MS : VIEW.UNLOCK_MS) / G.timeScale);
+    if (k < 0) return true;
+    if (f.kind === 'lid'){
+      const J = lv.jars[f.ji], e = ease.inOut(Math.min(1, k));
+      J.funnel.scale.setScalar(Math.max(0.001, 1 - Math.min(1, k * 2.5))); if (k * 2.5 >= 1) J.funnel.visible = false;      // воронка уходит, крышка садится
+      J.lid.visible = true; J.lid.position.lerpVectors(J.lidOpen, J.lidHome, e); J.lid.rotation.set(0.5 * (1 - e), e * Math.PI * 2, 0); J.lid.scale.setScalar(0.5 + 0.5 * Math.min(1, k * 2));
+      if (k >= 1 && !f.rang){ f.rang = true; J.order = 1 + lv.jars.filter(x => x.order).length; Snd.ding(J.order - 1); buzz(20); J.g.scale.set(1.06, 0.94, 1.06); f.tBounce = tNow;
+        const top = new THREE.Vector3(J.g.position.x, CFG.JAR_FLOOR + J.h + 0.15, 0.4), jc = COLORS[G.s.L.jars[f.ji].c].hex;
+        puffAt(top, jc, 14); starsAt(top, jc, 7, 1.0);
+        G.fx.push({ kind: 'wave', ji: f.ji, t0: tNow }); log('fx.end', 'lid', G.s.L.jars[f.ji].id); }
+      if (f.rang){ const b = Math.min(1, (tNow - f.tBounce) / 260); const s = 1 + 0.06 * Math.sin(b * Math.PI * 2) * (1 - b); J.g.scale.set(s, 2 - s, s); if (b >= 1){ J.g.scale.set(1, 1, 1); return false; } }
+      return true;
+    }
+    if (f.kind === 'wave'){                  // кольцо-волна цвета банки от крышки
+      const W = lv.jars[f.ji].wave, kk = Math.min(1, k * VIEW.LID_MS / 520); W.visible = kk < 1;
+      W.scale.setScalar(0.5 + 2.4 * ease.out(kk)); W.material.opacity = (1 - kk) * 0.95; return kk < 1;
+    }
+    if (f.kind === 'hop'){                   // победа: банки подпрыгивают волной
+      const J = lv.jars[f.ji], kk = Math.min(1, k * VIEW.LID_MS / 560);
+      if (!f.played){ f.played = true; Snd.chime(f.ji); starsAt(new THREE.Vector3(J.g.position.x, CFG.JAR_FLOOR + J.h + 0.3, 0.5), COLORS[G.s.L.jars[f.ji].c].hex, 5, 0.8); }
+      J.g.position.y = CFG.JAR_FLOOR + 0.42 * Math.sin(kk * Math.PI) * (1 - 0.25 * kk); J.g.rotation.z = 0.12 * Math.sin(kk * Math.PI * 2) * (1 - kk);
+      if (kk >= 1){ J.g.position.y = CFG.JAR_FLOOR; J.g.rotation.z = 0; return false; }
+      return true;
+    }
+    if (f.kind === 'unlock'){
+      const R = lv.rings[f.ri]; if (!R.lock) return false;
+      if (!f.played){ f.played = true; Snd.unlock(); R.tag.visible = false; log('fx.start', 'unlock', 'ring=' + R.id); }
+      const kk = Math.min(1, k);
+      R.lock.position.set(kk * 0.6, 0.04 + Math.sin(kk * Math.PI) * 0.5 - kk * kk * 1.2, 0.3);
+      R.lock.rotation.set(0, kk * 4, kk * 2.5); R.lock.scale.setScalar(1 - kk * 0.7);
+      if (k >= 1){ R.lock.visible = false; log('fx.end', 'unlock', 'ring=' + R.id); return false; }
+      return true;
+    }
+    return false;
+  });
+}
+function updatePour(tNow){
+  const P = G.pour, lv = R3 && R3.level;
+  if (!lv) return;
+  if (!P){ for (const V of lv.valves) V.wheel.rotation.z = V.wheelBase; return; }
+  const ts = G.timeScale, info = P.info, V = lv.valves.find(x => x.id === info.valve);
+  if (tNow >= P.t0 && !P.opened){ P.opened = true; Snd.click(); buzz(8);
+    const S = lv.rings[info.src]; if (S && S.ends[info.srcEnd]) S.ends[info.srcEnd].flash = tNow;
+    if (V){ const q = V.curve[0]; puffAt(new THREE.Vector3(q.x, q.y + 0.08, 0.3), COLORS[info.color].hex, 7); } setTimeout(() => Snd.sand(info.amount * CFG.POUR_MS / ts + 150, info.ji !== undefined, P.fillFrac), (CFG.VALVE_MS + 60) / ts); }
+  // вентиль: поворот на открытие, потом обратно
+  const kOpen = Math.min(1, Math.max(0, (tNow - P.t0) / (CFG.VALVE_MS / ts))), kClose = Math.min(1, Math.max(0, (tNow - P.tB) / (VIEW.WHEEL_BACK_MS / ts)));
+  if (V) V.wheel.rotation.z = V.wheelBase - VIEW.WHEEL_TURN * (ease.back(kOpen) - ease.inOut(kClose));
+  // струйка песчинок: из конца подковы через клапан
+  if (P.path && tNow >= P.nextGrain && tNow < P.tB - 60 / ts){
+    const col = lin(COLORS[info.color].hex);
+    while (P.nextGrain <= tNow && P.nextGrain < P.tB - 60 / ts){
+      P.nextGrain += 1000 / VIEW.GRAIN_RATE / ts;
+      const sh = 0.75 + rndFx() * 0.45;
+      R3.stream.push({ path: P.path, t0: P.nextGrain, life: 2500, v: VIEW.GRAIN_SPEED * (0.85 + rndFx() * 0.3), jx: (rndFx() - 0.5) * 0.1, jy: 0, jz: (rndFx() - 0.5) * 0.06,
+        rx: rndFx() * 6, ry: rndFx() * 6, size: 0.016 + rndFx() * 0.014, color: col.clone().multiplyScalar(sh) });
+      if (R3.stream.length > VIEW.POOL_GRAINS) R3.stream.shift();
+    }
+  }
+  // в банке: пыль от падения и подпрыгивание
+  if (info.ji !== undefined && tNow >= P.tA && tNow < P.tB && tNow - P.landed > 140 / ts){
+    P.landed = tNow; const J = lv.jars[info.ji], j = G.s.L.jars[info.ji];
+    puffAt(new THREE.Vector3(P.path.P[P.path.P.length - 1].x, CFG.JAR_FLOOR + 0.06 + J.V * CFG.JAR_DOSE_H + 0.05, 0.25), COLORS[info.color].hex, 3);
+    if (!J.bump) J.bump = tNow;
+  }
+  if (tNow >= P.tB && !P.thud){ P.thud = true; if (info.ji !== undefined) Snd.thud(); }
+  if (tNow >= P.tEnd) finishPour();
+}
+
+// --- ввод: Pointer Events. Палец на подкове: драг крутит её за пальцем, щелчок — на полпути до соседнего положения;
+// тап (сдвиг меньше 10 px, ни одного щелчка) — один щелчок по часовой. pointercancel = отпускание без тапа (§3). ---
+const cv = $('gl');
+function ringScreen(ri){
+  const r = G.s.L.rings[ri], rect = cv.getBoundingClientRect();
+  const c = new THREE.Vector3(r.x, r.y, 0).project(R3.camera), e = new THREE.Vector3(r.x + CFG.RING_R, r.y, 0).project(R3.camera);
+  const x = (c.x + 1) / 2 * rect.width, y = (1 - c.y) / 2 * rect.height, ex = (e.x + 1) / 2 * rect.width;
+  return { x, y, rpx: Math.abs(ex - x) };
+}
+function pickRing(cx, cy){
+  if (!R3 || !R3.level || !G.s) return -1;
+  const rect = cv.getBoundingClientRect(), x = cx - rect.left, y = cy - rect.top; let best = -1, bd = Infinity;
+  G.s.L.rings.forEach((r, ri) => { const s = ringScreen(ri), d = Math.hypot(s.x - x, s.y - y) / s.rpx; if (d < VIEW.PICK_R && d < bd){ bd = d; best = ri; } });
+  return best;
+}
+function pointerAngle(P, e){ const rect = cv.getBoundingClientRect(); return Math.atan2(e.clientY - rect.top - P.cy, e.clientX - rect.left - P.cx); }
+cv.addEventListener('pointerdown', (e) => {
+  Snd.init(); if (G.screen !== 'game' || !G.s || G.ending || G.press) return;
+  const ri = pickRing(e.clientX, e.clientY);
+  if (ri < 0){ log('input', 'miss'); return; }
+  if (ringLocked(G.s, ri)){ log('input', 'press', 'ring=' + G.s.L.rings[ri].id + ' locked'); const info = moveInfo(G.s, moveOf(ri, 1)); Snd.deny(); buzz(15); toast(denyText(info)); R3.level.rings[ri].shake = now(); return; }
+  const s = ringScreen(ri);
+  G.press = { ri, id: e.pointerId, x: e.clientX, y: e.clientY, cx: s.x, cy: s.y, rpx: s.rpx, a: 0, acc: 0, drag: false, dir: 0, clicks: 0 };
+  G.press.a = pointerAngle(G.press, e);
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  G.hint = null;
+  log('input', 'press', 'ring=' + G.s.L.rings[ri].id);
+});
+cv.addEventListener('pointermove', (e) => {
+  const P = G.press; if (!P || e.pointerId !== P.id) return;
+  const rect = cv.getBoundingClientRect(), dx = e.clientX - rect.left - P.cx, dy = e.clientY - rect.top - P.cy;
+  if (!P.drag && Math.hypot(e.clientX - P.x, e.clientY - P.y) > VIEW.TAP_PX){ P.drag = true; log('input', 'drag', 'ring=' + G.s.L.rings[P.ri].id); }
+  const a = pointerAngle(P, e);
+  if (Math.hypot(dx, dy) < P.rpx * 0.3){ P.a = a; return; }             // у центра угол пляшет — не крутим
+  let d = a - P.a; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; P.a = a;
+  if (!P.drag) return;
+  P.acc += d;
+  if (Math.abs(d) > 0.004) P.dir = d > 0 ? 1 : -1;            // превью — по направлению движения пальца
+  while (!G.pour && !G.ending && Math.abs(P.acc) >= STEP * 0.5){
+    const dir = P.acc > 0 ? 1 : -1;
+    P.acc -= dir * STEP; P.clicks++;
+    if (!turnRing(P.ri, dir, 'drag')) { P.acc = 0; break; }
+  }
+  if (G.pour) P.acc = Math.max(-STEP * 0.3, Math.min(STEP * 0.3, P.acc));
+});
+function onUp(e){
+  const P = G.press; if (!P || e.pointerId !== P.id) return;
+  G.press = null;
+  const R = R3 && R3.level && R3.level.rings[P.ri];
+  if (R && P.drag){ R.anim = { from: R.vis, to: R.cont, t0: now(), ms: 140, back: false }; }
+  if (e.type === 'pointercancel') return;
+  if (!P.drag && !P.clicks) turnRing(P.ri, 1, 'tap');
+}
+cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
+document.addEventListener('keydown', (e) => {            // дубли на клавиатуру для отладки (§3): цифра — по часовой, Shift+цифра — против
+  const mm = /^Digit([1-9])$/.exec(e.code);
+  if (mm && G.s) turnRing(+mm[1] - 1, e.shiftKey ? -1 : 1, 'key');
+  if (e.key === 'z' || e.key === 'u') undo(); if (e.key === 'r' && G.s) startLevel(G.s.li); if (e.key === 'm') goto('menu'); if (e.key === 'h') showHint();
+});
+$('btn-undo').onclick = () => { Snd.init(); log('input', 'button', 'undo'); undo(); };
+$('btn-reset').onclick = () => { Snd.init(); log('input', 'button', 'reset'); if (G.s) startLevel(G.s.li); };
+$('btn-hint').onclick = () => { Snd.init(); log('input', 'button', 'hint'); if (G.s && !G.pour) showHint(); };
+$('btn-menu').onclick = () => { Snd.init(); log('input', 'button', 'menu'); goto('menu'); };
+$('btn-mute').onclick = () => { Snd.init(); G.save.muted = !G.save.muted; save(); hud(); log('input', 'button', 'mute=' + G.save.muted); };
+$('dead-undo').onclick = () => { Snd.init(); log('input', 'button', 'dead.undo'); undo(); };
+
+// --- размер: resize + orientationchange + периодический пересчёт (§2) ---
+let lastW = 0, lastH = 0;
+function fit(){
+  if (!R3) return;
+  const r = $('game').getBoundingClientRect(); if (!r.width || !r.height) return;
+  if (r.width === lastW && r.height === lastH) return; lastW = r.width; lastH = r.height;
+  R3.renderer.setPixelRatio(R3.dpr); R3.renderer.setSize(r.width, r.height, false);
+  R3.camera.aspect = r.width / r.height; frameCamera();
+}
+let fitTimer = 0;
+const refit = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 140); };
+window.addEventListener('resize', refit); window.addEventListener('orientationchange', refit);
+setInterval(fit, 800);
+document.addEventListener('visibilitychange', () => { G.paused = document.hidden; log('event', G.paused ? 'pause' : 'resume'); });
+
+// --- кадр ---
+function renderFrame(){
+  if (!R3) return;
+  const tNow = now(), t0 = performance.now();
+  if (R3.level && G.view){
+    updatePour(tNow);
+    syncView(tNow);
+    updateFx(tNow);
+    updateParts(tNow);
+    const F = window.KLAPANY && window.KLAPANY.flags;
+    if (F && F.noParts){ R3.grains.count = 0; R3.drops.count = 0; R3.conf.count = 0; R3.stars.count = 0; }
+    applyPunch(tNow);
+  }
+  R3.renderer.render(R3.scene, R3.camera);
+  const dt = performance.now() - t0;
+  R3.frames.push(dt); if (R3.frames.length > 240) R3.frames.shift();
+  if (G.ending && tNow >= G.ending){
+    G.ending = 0; const clean = G.par > 0 && G.s.moves <= G.par;
+    goto('win', { clean, last: G.s.li >= LEVELS.length - 1 });
+  }
+  if (toastUntil && tNow > toastUntil){ $('toast').classList.add('hide'); toastUntil = 0; }
+}
+// Победа: камера чуть «толкается» вперёд, фон вспыхивает тёплым светом и гаснет.
+const _dir = new THREE.Vector3(), _bgTop = new THREE.Color(), _bgBot = new THREE.Color(), _warm = new THREE.Color('#fff1c4');
+function applyPunch(tNow){
+  if (G.punch){ const k = (tNow - G.punch) / (650 / G.timeScale); frameCamera();
+    if (k >= 1) G.punch = 0; else { R3.camera.getWorldDirection(_dir); R3.camera.position.addScaledVector(_dir, 0.55 * Math.sin(Math.min(1, k * 1.6) * Math.PI) * (1 - k)); } }
+  const u = R3.bg.material.uniforms;
+  if (G.flashBg){ const k = (tNow - G.flashBg) / (700 / G.timeScale), f = k >= 1 ? 0 : 0.55 * Math.pow(1 - k, 2);
+    u.uTop.value.copy(_bgTop.copy(lin(VIEW.BG_TOP)).lerp(_warm, f)); u.uBot.value.copy(_bgBot.copy(lin(VIEW.BG_BOTTOM)).lerp(_warm, f * 0.7)); if (k >= 1) G.flashBg = 0; }
+}
+// rAF + watchdog setInterval: безопасно, потому что время абсолютное (§4)
+let lastFrame = 0;
+function spinning(){ const lv = R3 && R3.level; return !!(lv && (G.spinDemo || (G.press && G.press.drag) || lv.rings.some(R => R.anim || R.p !== R.pT))); }
+function frame(ts){
+  const t = performance.now();
+  if (G.bench && lastFrame){ if (G.ending || G.screen === 'win') G.bench.win.push(t - lastFrame); else if (G.pour) G.bench.pour.push(t - lastFrame); else if (spinning()) G.bench.spin.push(t - lastFrame); }
+  lastFrame = t; if (!G.paused) renderFrame(); requestAnimationFrame(frame);
+}
+setInterval(() => { if (performance.now() - lastFrame > 120 && !G.paused) renderFrame(); }, 40);
+
+// --- дебаг-хук (§6) ---
+const waitFrames = () => new Promise(res => requestAnimationFrame(res));
+function benchStats(ints){
+  ints = ints.slice().sort((a, b) => a - b); const avg = ints.reduce((a, b) => a + b, 0) / Math.max(1, ints.length);
+  return { frames: ints.length, fps: +(1000 / Math.max(1e-6, avg)).toFixed(1), p95ms: +(ints[Math.floor(ints.length * 0.95)] || 0).toFixed(1), long: ints.filter(x => x > 25).length };
+}
+window.KLAPANY = {
+  G, LEVELS, PERF, get R3(){ return R3; },
+  state(){ return G.s ? { level: G.s.li + 1, name: G.s.L.name, rings: G.s.rings.map(r => r.join('') || '·').join(' '), ang: G.s.ang.join(''), jars: G.s.jars.join('/'), moves: G.s.moves, par: G.par,
+    win: isWin(G.s), dead: G.dead, pouring: !!G.pour, screen: G.screen } : { screen: G.screen }; },
+  play(n){ startLevel(Math.max(0, Math.min(LEVELS.length, n || 1) - 1)); return this.state(); },
+  turn(ri, dir){ turnRing(ri, dir || 1, 'key'); return this.state(); },
+  tap(ri){ turnRing(ri, 1, 'tap'); return this.state(); },
+  press(ri, dir){ G.press = { ri, id: -1, x: 0, y: 0, cx: 0, cy: 0, rpx: 1, a: 0, acc: 0, drag: false, dir: dir || 0, clicks: 0 }; return moveInfo(G.s, moveOf(ri, dir || 1)); },
+  release(){ const P = G.press; G.press = null; return P ? turnRing(P.ri, P.dir || 1, 'tap') : false; },
+  undo(){ undo(); return this.state(); },
+  goto(screen){ goto(screen); return G.screen; },
+  solve(){ return G.s ? solve(G.s) : null; },
+  hint(){ showHint(); return G.hint; },
+  auto(delayMs){ const path = this.solve() || []; path.forEach((m, k) => setTimeout(() => turnRing(m >> 1, (m & 1) ? -1 : 1, 'auto'), (delayMs || 1400) * k)); return path; },
+  drive(sec, stepMs){                         // ручной прогон времени: rAF заморожен в скрытой вкладке/превью
+    const step = stepMs || 1000 / 60, n = Math.round(sec * 1000 / step);
+    for (let i = 0; i < n; i++){ T.off += step; renderFrame(); }
+    return this.state();
+  },
+  speed(x){ G.timeScale = x || 1; return G.timeScale; },
+  rings(){ return G.s ? G.s.L.rings.map((r, ri) => ({ ri, id: r.id, o: G.s.ang[ri], locked: ringLocked(G.s, ri), screen: R3 && R3.level ? ringScreen(ri) : null, cw: moveInfo(G.s, moveOf(ri, 1)).code, ccw: moveInfo(G.s, moveOf(ri, -1)).code })) : []; },
+  // замер кадра: прогоняет решение текущего уровня на реальном rAF; интервалы кадров отдельно — во время пересыпаний и во время кручения
+  async bench(rounds){
+    rounds = rounds || 2; const li = G.s ? G.s.li : 2, cpu = []; G.bench = { pour: [], spin: [], win: [] };
+    for (let r = 0; r < rounds; r++){
+      startLevel(li); await new Promise(res => setTimeout(res, 300));
+      for (const m of (solve(G.s) || [])){
+        R3.frames.length = 0; turnRing(m >> 1, (m & 1) ? -1 : 1, 'auto');
+        while (G.pour || spinning()) await waitFrames();
+        cpu.push(...R3.frames);
+        await new Promise(res => setTimeout(res, 60));
+      }
+    }
+    for (const t0 = performance.now(); performance.now() - t0 < 3500;) await waitFrames();     // праздник и карточка победы — отдельной корзиной
+    startLevel(li); await new Promise(res => setTimeout(res, 300));
+    G.spinDemo = now(); for (const t0 = performance.now(); performance.now() - t0 < 2000;) await waitFrames(); G.spinDemo = 0;
+    const B = G.bench; G.bench = null; cpu.sort((a, b) => a - b);
+    const out = { pour: benchStats(B.pour), spin: benchStats(B.spin), win: benchStats(B.win), cpuAvgMs: +(cpu.reduce((a, b) => a + b, 0) / Math.max(1, cpu.length)).toFixed(2),
+      cpuP95ms: +(cpu[Math.floor(cpu.length * 0.95)] || 0).toFixed(2), dpr: R3.dpr, size: R3.renderer.domElement.width + '×' + R3.renderer.domElement.height };
+    log('event', 'bench', JSON.stringify(out)); return out;
+  },
+  startup(){ return PERF; },
+  get R3(){ return R3; },
+  flags: {},                                   // замер по частям: noParts — выключить частицы и сравнить кадр
+  reset(){ try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); },
+};
+
+// --- старт: меню сразу (DOM), GL и модели — следом; холст проявляется, когда шейдеры собраны и прогреты ---
+hud();
+if (!routeHash()) goto('menu');
+mark('menu');
+(async function boot(){
+  try {
+    await new Promise(r => setTimeout(r, 0));
+    initRenderer();
+    lastW = 0; fit();
+    await Promise.race([loadModels(), new Promise(r => setTimeout(r, 6000))]);
+    if (!G.s) { G.s = createState(Math.min(G.save.level, LEVELS.length - 1)); G.view = cloneState(G.s); G.par = -1; G.needAnalyze = true; }
+    buildLevel(G.s.L, true); mark('level');
+    if (R3.renderer.compileAsync) await R3.renderer.compileAsync(R3.scene, R3.camera); mark('compile');
+    warmUp(); renderFrame(); mark('firstFrame');
+    $('gl').classList.add('ready'); hud();
+    requestAnimationFrame(frame);
+    G.booted = true; if (G.needAnalyze){ G.needAnalyze = false; scheduleAnalyze(); }
+    log('event', 'boot', 'levels=' + LEVELS.length + ' glb=' + Object.keys(GLB).join(','));
+  } catch (err) { console.error(err); log('event', 'boot.fail', err.message); toast('3D не запустился: ' + err.message, 6000); }
+})();
+}
+</script>
+</body>
