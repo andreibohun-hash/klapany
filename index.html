@@ -65,6 +65,10 @@ button:active{transform:translateY(2px)}
 #toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:4;background:rgba(40,20,100,.88);color:#fff;padding:9px 16px;border-radius:14px;
   pointer-events:none;opacity:.98;transition:opacity .25s;max-width:86%;text-align:center;font-size:15px}
 #toast.hide{opacity:0}
+/* подсказка картинкой (уровни 1–2): палец тапает или ведёт подкову; рисует JS по положению подковы на экране */
+#pic{position:absolute;inset:0;z-index:2;pointer-events:none;display:none}
+#pic.show{display:block}
+#pic svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
 /* карточка победы: без цифр — слово, лучи, искры, одна кнопка. Кейфреймы стартуют с видимого состояния (§9) */
 #overlay.win{background:radial-gradient(90% 60% at 50% 34%, rgba(255,236,170,.42), rgba(52,26,128,.40) 78%)}
 .card.wincard{background:none;box-shadow:none;padding:0;position:relative;overflow:visible;margin-top:-30vh;animation:none;color:#fff}
@@ -102,7 +106,9 @@ button:active{transform:translateY(2px)}
     <button class="ico" id="btn-mute" aria-label="звук"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/><path class="slash" d="M16 9l5 6M21 9l-5 6"/></svg></button>
   </header>
   <div id="hint"></div>
-  <div id="game"><canvas id="gl"></canvas></div>
+  <div id="game"><canvas id="gl"></canvas><div id="pic"><svg><path id="pic-arc" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 12" opacity=".9"/>
+    <path id="pic-head" fill="#fff"/><circle id="pic-ring" fill="none" stroke="#fff" stroke-width="4"/>
+    <g id="pic-hand"><path d="M-9 4 V-26 a9 9 0 0 1 18 0 V-6 l14 4 a8 8 0 0 1 6 9 l-4 24 H-6 l-13 -16 a6 6 0 0 1 9 -8 z" fill="#fff" stroke="#3a2a7a" stroke-width="3.5" stroke-linejoin="round"/></g></svg></div></div>
   <div id="dead"><div><b>Тупик</b><span id="dead-text"></span></div><button id="dead-undo">Отменить ход</button></div>
   <footer>
     <button id="btn-undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Отмена</button>
@@ -121,40 +127,41 @@ button:active{transform:translateY(2px)}
 { // весь код в блоке: three.cjs объявляет сотни глобальных const, одноимённые объявления на верхнем уровне упали бы
 /* ЯДРО */
 // ---------------------------------------------------------------------------
-// «Клапаны» v0.5 «Подковы» — ядро правил. Исполняется и игрой, и sim.mjs/test.mjs (core-load.mjs вырезает этот блок).
+// «Клапаны» v0.6 «Проще» — ядро правил. Исполняется и игрой, и sim.mjs/test.mjs (core-load.mjs вырезает этот блок).
 //
-// Поле: прозрачные подковы (дуга 270°, разрыв 90°) с цветным песком и банки внизу. Песок в подкове — цепочка доз
+// Поле: прозрачные подковы (дуга 270°, разрыв 90°) с цветным песком и банки с воронками внизу. Песок в подкове — цепочка доз
 // вдоль трубки от конца E0 к концу E1, до 6 доз (6 ячеек по 45°). Цвета не смешиваются, порядок вдоль трубки не меняется.
 // Подкова крутится щелчками по 45° (8 положений o): драг — в любую сторону, тап — щелчок по часовой.
+// Подкова бывает большая (s = 1) и малая (s ≈ 0,65 — перевалка): малая встаёт под один выпуск большой, а песок со второго
+// выпуска пролетает мимо неё. Подкова того же размера под выпуском перекрыла бы оба выпуска верхней.
 //
 // Углы θ — от дна по часовой на экране (0 — низ, 90 — левый бок, 180 — верх, 270 — правый бок).
 // Концы подковы стоят на полушагах: E0 на θ = −22,5° + 45°·o, E1 — на 270° дальше. Поэтому в каждом положении ровно
-// один конец стоит в одной из четырёх «точек подключения» подковы:
-//   o = 0: E0 в BR (низ-право, −22,5°)  1: E0 в BL (низ-лево, 22,5°)  2: E1 в BR  3: E1 в BL   — выпуски: конец — нижняя точка трубки;
-//   o = 4: E0 в TL (верх-лево, 157,5°)  5: E0 в TR (верх-право, 202,5°) 6: E1 в TL  7: E1 в TR — входы: конец сверху, цепочка лежит на дне.
-// Разрыв ровно внизу (оба конца на одной высоте) при разрыве 90° и шаге 45° с концами на полушагах не встречается:
-// нижний конец всегда один. Почему полушаги: при концах на целых шагах сыпать можно только строго со дна — один выпуск
-// на подкову, и из неё все цвета шли бы в одно место (DESIGN.md, v0.5).
+// один конец стоит в одной из четырёх «точек» подковы:
+//   o = 0: E0 в BR (низ-право, −22,5°)  1: E0 в BL (низ-лево, 22,5°)  2: E1 в BR  3: E1 в BL   — выпуски: конец внизу, песок сыплется;
+//   o = 4: E0 в TL (верх-лево, 157,5°)  5: E0 в TR (верх-право, 202,5°) 6: E1 в TL  7: E1 в TR — входы: конец наверху, принимает песок.
 //
-// Клапан неподвижен: соединяет выпуск подковы (BL/BR) трубкой с банкой или со входом (TL/TR) подковы ниже. Цвет клапана —
-// что он пропускает ('' — прозрачный, любой цвет).
-//   • Пересыпание — по щелчку: щёлкнувшая подкова встала нижним концом в клапан — сыплет она; или щёлкнувшая подкова
-//     подвела свой конец ко входу клапана, в котором уже стоит конец подковы сверху — сыплет та, верхняя.
-//   • Проходит одна порция: доза за дозой, пока у конца тот же цвет, клапан его пропускает и приёмник берёт.
-//     Первая доза чужого цвета запирает выход, остальное стоит.
-//   • Банка берёт только свой цвет, до полной. Подкова берёт, если её конец стоит во входе этого клапана и есть место:
-//     песок съезжает по трубке и ложится к концу её цепочки со стороны входа.
+// v0.6: клапанов и жёлобов нет. Песок падает ОТВЕСНО из нижнего конца в то, что прямо под ним (dropFrom, считается из геометрии):
+//   • в воронку банки — банка и есть фильтр: берёт только свой цвет, до полной;
+//   • в подкову ниже — если под струёй стоит её конец (вход TL/TR). Не стоит — струя упирается в стекло, ничего не сыплется.
+// Раскладка обязана дать каждому выпуску приёмник: воронку или вход подковы ниже (layoutErrors), мимо песок не сыплется.
+//   • Пересыпание — по щелчку: щёлкнувшая подкова встала нижним концом над приёмником — сыплет она; или щёлкнувшая подкова
+//     подвела свой конец под выпуск, в котором уже стоит конец подковы сверху — сыплет та, верхняя.
+//   • Проходит одна порция: доза за дозой, пока у конца тот же цвет и приёмник берёт. Каскадов нет.
 //   • Замок на подкове: не крутится, пока не насыпана банка цвета замка. Цель — насыпать все банки, песка ровно столько.
+// Внутри ядра «дорога» выпуска по-прежнему зовётся valve (from, at, to, in, c = '' — фильтрует только банка): так солвер,
+// причины тупиков и боты v0.5 работают без изменений.
 // Тупик — солвер (положения × цепочки × банки) не видит ни одной победной последовательности; причину ищет deadReason.
 // ---------------------------------------------------------------------------
 const CFG = {
   RING_CAP: 6,          // доз в подкове: дуга 270° = 6 ячеек по 45°
   POS: 8,               // положений подковы, щелчок — 45°
-  RING_R: 1.0,          // радиус осевой линии подковы, мировые единицы
-  TUBE_R: 0.2,          // радиус трубки
+  RING_R: 1.0,          // радиус осевой линии большой подковы, мировые единицы (малая — ×s)
+  TUBE_R: 0.2,          // радиус трубки большой подковы (малая — ×s)
   RING_GAP: 0.06,       // минимальный зазор между трубками соседних подков
-  PIPE_R: 0.07,         // радиус трубки клапана (проверка раскладки)
-  PIPE_DROP: 0.2,       // трубка клапана сначала уходит вниз на столько, потом наклонно к приёмнику
+  STREAM_R: 0.06,       // полуширина струи песка (проверка раскладки: струя не задевает чужое)
+  CATCH: 0.4,           // струя попадает в воронку, если от оси банки не дальше этого (воронка — 0,5)
+  ALIGN: 0.03,          // струя попадает во вход подковы ниже, если ось входа ближе этого
   JAR_W: 1.1,           // ширина банки (внешняя)
   JAR_DOSE_H: 0.24,     // высота одной дозы в банке
   JAR_FLOOR: -1.5,      // y дна банок — все банки стоят на одной полке
@@ -162,10 +169,10 @@ const CFG = {
   FUNNEL_H: 0.32,       // высота воронки над горлом
   CLICK_MS: 130,        // щелчок подковы (анимация тапа; ядро не зависит)
   POUR_MS: 320,         // пересыпание одной дозы, мс
-  VALVE_MS: 150,        // вентиль открывается до начала струйки, мс
+  VALVE_MS: 150,        // конец «открывается» до начала струйки, мс
   SOLVE_LIMIT: 400000,  // предел состояний перебора
 };
-const SPOT_DEG = { BR: -22.5, BL: 22.5, TL: 157.5, TR: 202.5 };   // точки подключения подковы (θ от дна по часовой)
+const SPOT_DEG = { BR: -22.5, BL: 22.5, TL: 157.5, TR: 202.5 };   // точки подковы (θ от дна по часовой)
 const OUTLET = { BL: true, BR: true };
 // Какой конец в какой точке при положении o: e — 0 (E0) или 1 (E1).
 const END_AT = [{ e: 0, spot: 'BR' }, { e: 0, spot: 'BL' }, { e: 1, spot: 'BR' }, { e: 1, spot: 'BL' },
@@ -195,71 +202,56 @@ function mulberry32(seed){
 }
 
 // Уровни — декларативная таблица.
-//   Подкова: id, центр (x, y), fill — дозы от конца E0 к E1, o — стартовое положение (0..7), lock — цвет банки, снимающей замок.
-//   Банка: id, цвет c, объём cap, x (стоит на полке).
-//   Клапан: from — подкова, at — её выпуск (BL/BR), to — банка или подкова, in — вход подковы-приёмника (TL/TR), c — цвет ('' — прозрачный).
+//   Подкова: id, центр (x, y), s — размер (малая 0,65, по умолчанию 1), fill — дозы от конца E0 к E1, o — стартовое положение (0..7),
+//            lock — цвет банки, снимающей замок.
+//   Банка: id, цвет c, объём cap, x (стоит на полке). Куда что сыплется — из геометрии (dropFrom), руками дороги не задаются.
+//   pic — подсказка картинкой на первых уровнях: 'tap' — палец тапает, 'drag' — палец ведёт подкову против часовой.
+// Малая подкова под выпуском большой: x = x_A ± (OFF + OFF·s), OFF = sin 22,5° — её вход ровно под выпуском.
 // Порядок подков = номера ходов: ход m = 2·подкова + (0 — по часовой, 1 — против).
+const OFF = Math.sin(22.5 * Math.PI / 180), SMALL = 0.65, XS = +(OFF + OFF * SMALL).toFixed(4);
 const LEVELS = [
-  // 1. один конец в клапан своего цвета: тап — щелчок по часовой, нижний конец встаёт в розовый клапан
-  { n: 1, name: 'Конец в клапан', hint: 'Тапни по подкове — она щёлкнет по часовой',
-    rings: [{ id: 'A', x: 0, y: 1.7, fill: 'pp', o: 7 }],
-    jars:  [{ id: 'jp', c: 'p', cap: 2, x: 0.55 }],
-    valves: [{ id: 'v1', from: 'A', at: 'BR', to: 'jp', c: 'p' }] },
+  // 1. Тап — подкова щёлкает, нижний конец над воронкой — песок сыплется. Одна подкова, одна банка точно под ней.
+  { n: 1, name: 'Сыпь', hint: '', pic: 'tap',
+    rings: [{ id: 'A', x: 0, y: 1.6, fill: 'pp', o: 7 }],
+    jars:  [{ id: 'jp', c: 'p', cap: 2, x: 0 }] },
 
-  // 2. второй конец: у одного конца голубой, у другого розовый — каждый в свой клапан
-  { n: 2, name: 'Другой конец', hint: 'С каждого конца — свой цвет',
-    rings: [{ id: 'A', x: 0, y: 1.7, fill: 'bbpp', o: 0 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -0.6 }, { id: 'jp', c: 'p', cap: 2, x: 0.6 }],
-    valves: [{ id: 'v1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'v2', from: 'A', at: 'BR', to: 'jp', c: 'p' }] },
+  // 2. Банка берёт только свой цвет: розовый конец висит над голубой воронкой и не сыплется. Тянешь против часовой —
+  //    розовый уходит вправо, в розовую; дальше голубой — влево (тапом или ещё раз против часовой). Тапами тоже можно, дольше.
+  { n: 2, name: 'Свой цвет', hint: '', pic: 'drag',
+    rings: [{ id: 'A', x: 0, y: 1.6, fill: 'bbp', o: 3 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -0.72 }, { id: 'jp', c: 'p', cap: 1, x: 0.72 }] },
 
-  // 3. первое «ага»: короткий путь (по часовой) ставит голубой конец в прозрачный клапан — он уходит в перевалку B, откуда голубому дороги нет.
-  //    Верно: начать с другого конца — оранжевый в перевалку (против часовой), или сперва отвести вход B
+  // 3. Первое «ага» — «С какого конца»: голубой конец висит над оранжевой воронкой, голубая банка — под малой подковой B справа.
+  //    Тап (по часовой) ставит вправо ОРАНЖЕВЫЙ конец — он падает в B, а под B только голубая банка: тупик.
+  //    Верно — против часовой: голубой в B, потом оранжевый влево, потом B отдаёт голубой.
   { n: 3, name: 'С какого конца', hint: '',
-    rings: [{ id: 'A', x: -0.6, y: 4.3, fill: 'bpbo', o: 7 }, { id: 'B', x: 0.166, y: 1.7, fill: '', o: 4 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.65 }, { id: 'jo', c: 'o', cap: 1, x: -0.25 }, { id: 'jp', c: 'p', cap: 1, x: 0.95 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+    rings: [{ id: 'A', x: 0, y: 3.6, fill: 'bboo', o: 1 }, { id: 'B', x: XS, y: 1.55, s: SMALL, fill: '', o: 4 }],
+    jars:  [{ id: 'jo', c: 'o', cap: 2, x: -0.62 }, { id: 'jb', c: 'b', cap: 2, x: XS }] },
 
-  // 4. подкова под подковой: два клапана между ними (розовый и прозрачный); нижняя подставляет конец во вход — передышка без тупиков
-  { n: 4, name: 'Подставь конец', hint: 'Нижняя подкова примет песок, если её конец во входе клапана',
-    rings: [{ id: 'A', x: 0, y: 4.3, fill: 'bpp', o: 1 }, { id: 'B', x: 0, y: 1.7, fill: '', o: 5 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 1, x: -0.6 }, { id: 'jp', c: 'p', cap: 2, x: 0.6 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TL', c: 'p' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TR', c: '' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+  // 4. Подставь конец (передышка): A над B того же размера — оба выпуска A сыплют в B, если её конец стоит под струёй.
+  //    Под B две банки. Столбик не даёт тупиков: B отдаёт любой конец в любую сторону.
+  { n: 4, name: 'Подставь', hint: '',
+    rings: [{ id: 'A', x: 0, y: 4.3, fill: 'bbp', o: 2 }, { id: 'B', x: 0, y: 1.7, fill: '', o: 4 }],
+    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -0.72 }, { id: 'jp', c: 'p', cap: 1, x: 0.72 }] },
 
-  // 5. развилка: из A голубой клапан ведёт в B (голубая и оранжевая банки), прозрачный — в C (оранжевая и розовая); голубой в C — тупик
+  // 5. Развилка: A сыплет вправо в малую B (над голубой) и влево в малую C (над розовой). Розовый — в середине цепочки:
+  //    голубой в B, розовый в C, голубой в B — три тапа. Против часовой первым — голубой падает в C: тупик.
   { n: 5, name: 'Развилка', hint: '',
-    rings: [{ id: 'A', x: 0, y: 4.9, fill: 'bpo', o: 4 }, { id: 'B', x: -1.35, y: 1.8, fill: '', o: 7 }, { id: 'C', x: 1.35, y: 1.8, fill: '', o: 4 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 1, x: -1.75 }, { id: 'jo', c: 'o', cap: 1, x: 0 }, { id: 'jp', c: 'p', cap: 1, x: 1.75 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TR', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'C', in: 'TL', c: '' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jo', c: 'o' },
-             { id: 'vC1', from: 'C', at: 'BL', to: 'jo', c: 'o' }, { id: 'vC2', from: 'C', at: 'BR', to: 'jp', c: 'p' }] },
+    rings: [{ id: 'A', x: 0, y: 4.65, fill: 'bpb', o: 7 }, { id: 'B', x: XS, y: 2.65, s: SMALL, fill: '', o: 4 }, { id: 'C', x: -XS, y: 1.55, s: SMALL, fill: '', o: 5 }],
+    jars:  [{ id: 'jp', c: 'p', cap: 1, x: -XS }, { id: 'jb', c: 'b', cap: 2, x: XS }] },
 
-  // 6. общий проход: A и C сыплют в одну перевалку B через её два входа; голубой из A — только прямо в банку
-  { n: 6, name: 'Общий проход', hint: '',
-    rings: [{ id: 'A', x: -1.3, y: 4.5, fill: 'bpb', o: 5 }, { id: 'C', x: 1.3, y: 4.5, fill: 'oo', o: 6 }, { id: 'B', x: 0, y: 1.8, fill: '', o: 4 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.75 }, { id: 'jo', c: 'o', cap: 2, x: -0.45 }, { id: 'jp', c: 'p', cap: 1, x: 0.75 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
-             { id: 'vC2', from: 'C', at: 'BL', to: 'B', in: 'TR', c: '' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
+  // 6. Замок: та же развилка, но C не крутится, пока не насыпана голубая. Розовый ждёт в C, пока B не отдаст голубой.
+  //    Голубой первым — в B, розовый — в C (её вход открыт с начала), B отдаёт голубой — замок слетает — C отдаёт розовый.
+  { n: 6, name: 'Замок', hint: '',
+    rings: [{ id: 'A', x: 0, y: 4.65, fill: 'bbpp', o: 7 }, { id: 'B', x: XS, y: 2.65, s: SMALL, fill: '', o: 4 }, { id: 'C', x: -XS, y: 1.55, s: SMALL, fill: '', o: 5, lock: 'b' }],
+    jars:  [{ id: 'jp', c: 'p', cap: 2, x: -XS }, { id: 'jb', c: 'b', cap: 2, x: XS }] },
 
-  // 7. замок: A не крутится, пока не насыпана оранжевая банка — сначала опустошить конец перевалки B
-  { n: 7, name: 'Замок', hint: '',
-    rings: [{ id: 'A', x: -0.6, y: 4.3, fill: 'bppb', o: 5, lock: 'o' }, { id: 'B', x: 0.166, y: 1.7, fill: 'po', o: 4 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -1.65 }, { id: 'jo', c: 'o', cap: 1, x: -0.25 }, { id: 'jp', c: 'p', cap: 3, x: 0.95 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'jb', c: 'b' }, { id: 'vA2', from: 'A', at: 'BR', to: 'B', in: 'TL', c: '' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jo', c: 'o' }, { id: 'vB2', from: 'B', at: 'BR', to: 'jp', c: 'p' }] },
-  // 8. большой: «Завод» — всё сразу, чтобы увидеть глубину. Ромб A / B C / D, четыре цвета, 8 клапанов, D — общая перевалка.
-  //    Розовые по краям C развести через D (зелёный A войдёт в C только между ними), B заперта до зелёной банки,
-  //    оранжевый из B — в D через оранжевый клапан, D отдаёт очередью: сначала розовый, потом оранжевый. Найден tools/bigsearch.mjs.
-  { n: 8, name: 'Завод', hint: '',
-    rings: [{ id: 'A', x: 0, y: 7.4, fill: 'gb', o: 2 }, { id: 'B', x: -1.35, y: 4.6, fill: 'boo', o: 5, lock: 'g' },
-            { id: 'C', x: 1.35, y: 4.6, fill: 'pgp', o: 0 }, { id: 'D', x: 0, y: 1.8, fill: '', o: 4 }],
-    jars:  [{ id: 'jb', c: 'b', cap: 2, x: -2.0 }, { id: 'jo', c: 'o', cap: 2, x: -0.65 }, { id: 'jp', c: 'p', cap: 2, x: 0.65 }, { id: 'jg', c: 'g', cap: 2, x: 2.0 }],
-    valves: [{ id: 'vA1', from: 'A', at: 'BL', to: 'B', in: 'TR', c: '' }, { id: 'vA2', from: 'A', at: 'BR', to: 'C', in: 'TL', c: 'g' },
-             { id: 'vB1', from: 'B', at: 'BL', to: 'jb', c: 'b' }, { id: 'vB2', from: 'B', at: 'BR', to: 'D', in: 'TL', c: 'o' },
-             { id: 'vC1', from: 'C', at: 'BL', to: 'D', in: 'TR', c: '' }, { id: 'vC2', from: 'C', at: 'BR', to: 'jg', c: 'g' },
-             { id: 'vD1', from: 'D', at: 'BL', to: 'jo', c: 'o' }, { id: 'vD2', from: 'D', at: 'BR', to: 'jp', c: 'p' }] },
+  // 7. Ступени: A над B (столбик), у B справа малая C над голубой; левый выпуск B — в оранжевую.
+  //    Всё из A идёт через B; оранжевый с той стороны, где C, — тупик. Оранжевый первым в B, потом голубые, B отдаёт оранжевый влево,
+  //    голубые — в C.
+  { n: 7, name: 'Ступени', hint: '',
+    rings: [{ id: 'A', x: -0.4, y: 6.05, fill: 'bbo', o: 2 }, { id: 'B', x: -0.4, y: 3.55, fill: '', o: 4 }, { id: 'C', x: +(-0.4 + XS).toFixed(4), y: 1.55, s: SMALL, fill: '', o: 4 }],
+    jars:  [{ id: 'jo', c: 'o', cap: 1, x: -1.02 }, { id: 'jb', c: 'b', cap: 2, x: +(-0.4 + XS).toFixed(4) }] },
 ];
 
 // ---- геометрия (общая для рендера и проверки раскладки) ----
@@ -271,23 +263,51 @@ function jarHeight(cap){ return cap * CFG.JAR_DOSE_H + 0.3; }
 function funnelTop(J){ return CFG.JAR_FLOOR + jarHeight(J.cap) + CFG.FUNNEL_H; }
 function posNorm(k){ return ((k % CFG.POS) + CFG.POS) % CFG.POS; }
 function ringCap(L, ri){ return L.rings[ri].cap || CFG.RING_CAP; }
+function ringR(r){ return CFG.RING_R * (r.s || 1); }
+function tubeR(r){ return CFG.TUBE_R * (r.s || 1); }
 const DEG = Math.PI / 180;
 // Точка на осевой линии подковы под углом θ (градусы от дна по часовой).
-function rimAt(r, deg){ return { x: r.x - CFG.RING_R * Math.sin(deg * DEG), y: r.y - CFG.RING_R * Math.cos(deg * DEG) }; }
+function rimAt(r, deg){ const R = ringR(r); return { x: r.x - R * Math.sin(deg * DEG), y: r.y - R * Math.cos(deg * DEG) }; }
 function spotPos(r, spot){ return rimAt(r, SPOT_DEG[spot]); }
 // Угол конца e подковы в положении o.
 function endDeg(o, e){ return -22.5 + 45 * o + (e ? 270 : 0); }
-// Клапаны уровня: что на выпуске, что на входе.
+// Дороги уровня: что под выпуском, что над входом.
 function valveAt(L, ri, spot){ const id = L.rings[ri].id; return L.valves.find(v => v.from === id && v.at === spot) || null; }
 function inletValve(L, ri, spot){ const id = L.rings[ri].id; return L.valves.find(v => v.to === id && v.in === spot) || null; }
-// Трубка клапана: от выпуска вниз, потом наклонно к приёмнику, потом вниз в воронку банки или во вход подковы.
+// Куда падает песок с выпуска at подковы ri: отвесно вниз до первого, во что упрётся струя (с запасом на её ширину).
+// { to, in } — приёмник; { err } — струя бьёт в стекло, в край воронки или падает мимо.
+function dropFrom(L, ri, at){
+  const r = L.rings[ri], p = spotPos(r, at), w = CFG.STREAM_R;
+  for (let y = p.y - tubeR(r) - 0.02; y > CFG.JAR_FLOOR - 0.2; y -= 0.01){
+    for (let qi = 0; qi < L.rings.length; qi++){
+      if (qi === ri) continue;
+      const q = L.rings[qi], R = ringR(q), T = tubeR(q);
+      const near = [-w, 0, w].some(dx => Math.abs(Math.hypot(p.x + dx - q.x, y - q.y) - R) < T);
+      if (!near) continue;
+      for (const spot of ['TL', 'TR']){ const t = spotPos(q, spot); if (Math.abs(t.x - p.x) < CFG.ALIGN && Math.abs(t.y - y) < T + 0.1) return { to: q.id, in: spot, y: t.y }; }
+      return { err: 'струя с ' + r.id + at + ' бьёт в стекло подковы ' + q.id };
+    }
+    for (const J of L.jars){
+      if (y > funnelTop(J) || Math.abs(p.x - J.x) > CFG.FUNNEL_W / 2 + w) continue;
+      if (Math.abs(p.x - J.x) > CFG.CATCH) return { err: 'струя с ' + r.id + at + ' бьёт в край воронки ' + J.id };
+      return { to: J.id, y: funnelTop(J) };
+    }
+  }
+  return { err: 'с ' + r.id + at + ' песок сыпался бы мимо: под выпуском ни воронки, ни подковы' };
+}
+// Дороги выводятся из геометрии один раз на уровень (L.valves). force — пересчитать (инструменты двигают подковы).
+function deriveDrops(L, force){
+  if (L._drops && !force) return L.valves;
+  const valves = [], errs = [];
+  L.rings.forEach((r, ri) => { for (const at of ['BL', 'BR']){ const d = dropFrom(L, ri, at);
+    if (d.err) errs.push(d.err); else valves.push({ id: r.id + at, from: r.id, at, to: d.to, ...(d.in ? { in: d.in } : {}), c: '' }); } });
+  L.valves = valves; L._dropErrs = errs; L._drops = true;
+  return valves;
+}
+// Струя: от выпуска отвесно вниз до воронки или до входа подковы ниже.
 function valvePath(L, v){
-  const r = ringById(L, v.from), p0 = spotPos(r, v.at), J = jarById(L, v.to);
-  let tx, ty;
-  if (J){ ty = funnelTop(J); tx = Math.abs(p0.x - J.x) <= CFG.FUNNEL_W / 2 - 0.14 ? p0.x : J.x; }
-  else { const q = spotPos(ringById(L, v.to), v.in); tx = q.x; ty = q.y; }
-  if (Math.abs(tx - p0.x) < 0.01) return [p0, { x: p0.x, y: ty }];
-  return [p0, { x: p0.x, y: p0.y - CFG.PIPE_DROP }, { x: tx, y: ty + CFG.PIPE_DROP }, { x: tx, y: ty }];
+  const p0 = spotPos(ringById(L, v.from), v.at), J = jarById(L, v.to);
+  return [p0, { x: p0.x, y: J ? funnelTop(J) : spotPos(ringById(L, v.to), v.in).y }];
 }
 // Куда съезжает цепочка из n доз в положении o (ячейка s стоит на θ = 45°·(o + s)): сумма высот минимальна.
 // При равенстве — ближе к тому месту, где была (prev). Ядру это не нужно (сыпется всегда с нижнего конца), рендер и тест — пользуются.
@@ -303,57 +323,20 @@ function restOffset(o, n, prev){
 
 // Проверка раскладки уровня. Возвращает список ошибок.
 function layoutErrors(L){
-  const out = [], R = CFG.RING_R, T = CFG.TUBE_R;
-  L.valves = L.valves || [];
+  const out = [];
   for (let i = 0; i < L.rings.length; i++) for (let k = i + 1; k < L.rings.length; k++){
     const a = L.rings[i], b = L.rings[k], d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (d < 2 * (R + T) + CFG.RING_GAP) out.push('подковы ' + a.id + ' и ' + b.id + ' задевают друг друга (d=' + d.toFixed(2) + ')');
+    if (d < ringR(a) + tubeR(a) + ringR(b) + tubeR(b) + CFG.RING_GAP) out.push('подковы ' + a.id + ' и ' + b.id + ' задевают друг друга (d=' + d.toFixed(2) + ')');
   }
   const top = Math.max(...L.jars.map(funnelTop));
-  for (const r of L.rings) if (r.y - R - T < top + 0.12) out.push('подкова ' + r.id + ' опускается в воронки банок');
+  for (const r of L.rings) if (r.y - ringR(r) - tubeR(r) < top + 0.12) out.push('подкова ' + r.id + ' опускается в воронки банок');
   for (let i = 0; i < L.jars.length; i++) for (let k = i + 1; k < L.jars.length; k++)
     if (Math.abs(L.jars[i].x - L.jars[k].x) < Math.max(CFG.JAR_W, CFG.FUNNEL_W) + 0.06) out.push('банки ' + L.jars[i].id + ' и ' + L.jars[k].id + ' налезают');
-  const used = new Set(), paths = [];
-  for (const v of L.valves){
-    const fi = ringIndex(L, v.from); if (fi < 0){ out.push('клапан ' + v.id + ': нет подковы ' + v.from); continue; }
-    if (!OUTLET[v.at]) out.push('клапан ' + v.id + ': выпуск только BL/BR, а не ' + v.at);
-    const key = v.from + v.at; if (used.has(key)) out.push('клапан ' + v.id + ': на выпуске ' + key + ' уже есть клапан'); used.add(key);
-    const J = jarById(L, v.to), ti = ringIndex(L, v.to);
-    if (!J && ti < 0){ out.push('клапан ' + v.id + ': нет приёмника ' + v.to); continue; }
-    if (v.c && !COLORS[v.c]) out.push('клапан ' + v.id + ': цвет ' + v.c);
-    if (J && v.c && v.c !== J.c) out.push('клапан ' + v.id + ' цвета ' + v.c + ' над банкой ' + J.c + ' — ничего не пройдёт');
-    if (ti >= 0){
-      if (ti === fi) out.push('клапан ' + v.id + ' ведёт в свою же подкову');
-      if (!(v.in === 'TL' || v.in === 'TR')) out.push('клапан ' + v.id + ': вход подковы только TL/TR');
-      const ik = v.to + v.in; if (used.has(ik)) out.push('клапан ' + v.id + ': вход ' + ik + ' занят'); used.add(ik);
-    }
-    const P = valvePath(L, v); paths.push({ v, P });
-    if (P[P.length - 1].y > P[0].y - 0.3) out.push('клапан ' + v.id + ': приёмник не ниже выпуска');
-    if (P.length === 4){ const dx = Math.abs(P[2].x - P[1].x), dy = P[1].y - P[2].y; if (dy < 0.75 * dx) out.push('клапан ' + v.id + ': трубка слишком полога (песок не съедет)'); }
-    if (J && Math.abs(P[P.length - 1].x - J.x) > CFG.FUNNEL_W / 2 - 0.1) out.push('клапан ' + v.id + ': мимо воронки банки');
-    // трубка не проходит сквозь чужие подковы и банки
-    const len = P.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - P[i].x, p.y - P[i].y), 0);
-    for (let i = 1; i < P.length; i++){
-      const a = P[i - 1], b = P[i], n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.04);
-      for (let q = 0; q <= n; q++){
-        const x = a.x + (b.x - a.x) * q / n, y = a.y + (b.y - a.y) * q / n;
-        const along = P.slice(1, i).reduce((s, p, j) => s + Math.hypot(p.x - P[j].x, p.y - P[j].y), 0) + Math.hypot(x - a.x, y - a.y);
-        L.rings.forEach((r, ri) => {
-          if (ri === fi && along < 0.42) return; if (ri === ti && len - along < 0.42) return;
-          const d = Math.abs(Math.hypot(x - r.x, y - r.y) - R);
-          if (d < T + CFG.PIPE_R + 0.02) out.push('клапан ' + v.id + ': трубка задевает подкову ' + r.id);
-        });
-        for (const jj of L.jars) if (jj !== J && Math.abs(x - jj.x) < Math.max(CFG.JAR_W, CFG.FUNNEL_W) / 2 + CFG.PIPE_R && y < funnelTop(jj)) out.push('клапан ' + v.id + ': трубка проходит сквозь банку ' + jj.id);
-      }
-    }
-  }
-  // трубки не пересекаются
-  const segX = (a, b, c, d) => { const o = (p, q, r) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)); return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0; };
-  for (let i = 0; i < paths.length; i++) for (let k = i + 1; k < paths.length; k++){
-    const A = paths[i].P, B = paths[k].P; let hit = false;
-    for (let s = 1; s < A.length; s++) for (let t = 1; t < B.length; t++) if (segX(A[s - 1], A[s], B[t - 1], B[t])) hit = true;
-    if (hit) out.push('трубки клапанов ' + paths[i].v.id + ' и ' + paths[k].v.id + ' пересекаются');
-  }
+  deriveDrops(L, true);
+  out.push(...L._dropErrs);
+  for (const v of L.valves){ const ti = ringIndex(L, v.to), P = valvePath(L, v);
+    if (ti >= 0 && P[0].y - P[1].y < 0.3) out.push('с ' + v.id + ' в подкову ' + v.to + ': падать меньше 0,3 — струи не видно'); }
+  for (const J of L.jars) if (!L.valves.some(v => v.to === J.id)) out.push('банка ' + J.id + ': над ней ни одного выпуска');
   for (const j of L.jars) if (!(j.cap >= 1)) out.push('банка ' + j.id + ': объём ' + j.cap);
   for (const c of new Set([...L.jars.map(j => j.c), ...L.rings.flatMap(r => [...r.fill])])){
     const need = L.jars.filter(j => j.c === c).reduce((s, j) => s + j.cap, 0);
@@ -365,14 +348,14 @@ function layoutErrors(L){
     if (!(r.o >= 0 && r.o < CFG.POS)) out.push('подкова ' + r.id + ': стартовое положение ' + r.o);
     if (r.lock && !L.jars.some(j => j.c === r.lock)) out.push('подкова ' + r.id + ': замок цвета без банки');
   });
-  // на старте ни один конец не стоит в открытом клапане (иначе песок висел бы над открытым выпуском)
-  if (!out.length){ const s = createState(-1, L); L.rings.forEach((r, ri) => { const f = flowFor(s, ri, s.ang[ri]); if (f.code === 'ok') out.push('подкова ' + r.id + ': на старте конец уже стоит в открытом клапане ' + f.valve); }); }
+  // на старте ни один конец не стоит над приёмником, который берёт (иначе песок висел бы над открытой воронкой)
+  if (!out.length){ const s = createState(-1, L); L.rings.forEach((r, ri) => { const f = flowFor(s, ri, s.ang[ri]); if (f.code === 'ok') out.push('подкова ' + r.id + ': на старте конец уже сыплет в ' + f.to); }); }
   return out;
 }
 
 // ---- состояние ----
 function createState(li, def){
-  const L = def || LEVELS[li]; L.valves = L.valves || [];
+  const L = def || LEVELS[li]; deriveDrops(L);
   return { li, L, rings: L.rings.map(r => [...r.fill]), ang: L.rings.map(r => posNorm(r.o || 0)), jars: L.jars.map(() => 0), moves: 0, hist: [] };
 }
 function cloneState(s){ return { li: s.li, L: s.L, rings: s.rings.map(r => r.slice()), ang: s.ang.slice(), jars: s.jars.slice(), moves: s.moves, hist: s.hist.slice() }; }
@@ -383,7 +366,7 @@ function ringLocked(s, ri){ const c = s.L.rings[ri].lock; return !!c && !lockOpe
 const moveOf = (ri, dir) => ri * 2 + (dir > 0 ? 0 : 1);
 function endColor(arr, e){ return arr.length ? (e ? arr[arr.length - 1] : arr[0]) : null; }
 
-// Пересыпание через клапан v из подковы si (положение so). recv — {ri, o}: положение подковы-приёмника, если она только что щёлкнула.
+// Пересыпание по дороге v (струя вниз) из подковы si (положение so). recv — {ri, o}: положение подковы-приёмника, если она только что щёлкнула.
 // code: ok | empty | wrongValve | wrongJar | jarFull | closedBelow | ringFull
 function pourVia(s, v, si, so, recv, base){
   const L = s.L, src = s.rings[si], E = END_AT[so], n = src.length;
@@ -408,7 +391,7 @@ function pourVia(s, v, si, so, recv, base){
   }
   return { ...out, code: 'ok', amount: Math.min(run, space), run };
 }
-// Что случится, когда подкова ri встанет в положение o. code: ok (сыплется) | rest (ничего) | closed (нижний конец — без клапана) | locked | …(pourVia)
+// Что случится, когда подкова ri встанет в положение o. code: ok (сыплется) | rest (ничего) | closed (под нижним концом ничего — в v0.6 раскладка такого не допускает) | locked | …(pourVia)
 function flowFor(s, ri, o){
   const L = s.L, E = END_AT[posNorm(o)], base = { ri, from: L.rings[ri].id, k: posNorm(o), end: E.e, at: E.spot };
   if (OUTLET[E.spot]){
@@ -437,7 +420,7 @@ function applyMove(s, m){
   n.ang[info.ri] = info.k;
   if (info.code === 'ok'){
     const src = n.rings[info.src];
-    if (info.srcEnd) src.splice(src.length - info.amount, info.amount); else src.splice(0, info.amount);   // уходит только с конца в клапане
+    if (info.srcEnd) src.splice(src.length - info.amount, info.amount); else src.splice(0, info.amount);   // уходит только с нижнего конца
     if (info.ji !== undefined) n.jars[info.ji] += info.amount;
     else { const dst = n.rings[info.ti]; for (let q = 0; q < info.amount; q++){ if (info.toEnd) dst.push(info.color); else dst.unshift(info.color); } }
   }
@@ -546,7 +529,7 @@ function spinTrap(s, ri, dir){
 }
 
 // ---- причина тупика человеческими словами ----
-// Есть ли дорога из подковы ri до банки цвета c через клапаны, которые его пропускают.
+// Есть ли дорога из подковы ri до банки цвета c (струями вниз; фильтрует только банка).
 function routeTo(L, ri, c, seen){
   seen = seen || new Set(); if (seen.has(ri)) return false; seen.add(ri);
   return L.valves.some(v => v.from === L.rings[ri].id && (!v.c || v.c === c) &&
@@ -643,22 +626,12 @@ const VIEW = {                 // визуальные параметры (яд�
   MARGIN_TOP: 0.3,             // поле сверху
   MIN_W: 4.4,                  // минимальная ширина кадра в мировых ед.
   SAND_R: 0.158,               // радиус песка внутри трубки (трубка 0.2)
-  TROUGH_W: 0.17,              // жёлоб клапана: полуширина снаружи (как трубка подковы; ближе 0,21 к чужим подковам дороги не подходят)
-  TROUGH_WI: 0.135,            // полуширина дна изнутри, разница — кромка-обводка
-  TROUGH_FILLET: 0.16,         // скругление изгибов жёлоба
-  CHEV_SPEED: 0.5,             // шевронов в секунду по жёлобу в покое
-  CHEV_FAST: 2.2,              // на дороге следующего щелчка и во время пересыпания
-  GLOW_W: 0.4,                 // полуширина ореола под жёлобом при подсветке
-  GRAIN_Z: -0.05,              // песчинки бегут по дну жёлоба
-  CLEAR_TROUGH: '#fbfaff', CLEAR_STRIPE: '#b9acf2', CLEAR_RIM: '#7a68c8',
-  WHEEL_D: 0.36,               // диаметр вентиля клапана
-  SHORT_ROUTE: 1.0,            // трубка клапана (valvePath) короче — вентиль сбоку на штоке, чтобы жёлоб был виден
-  WHEEL_SIDE_X: 0.36, WHEEL_SIDE_Y: 0.26,   // вентиль сбоку: наружу от подковы и ниже выпуска (зазор до соседей ≥ 0,01, qa проверено)
-  WHEEL_TURN: Math.PI / 2,     // поворот вентиля при открытии
-  WHEEL_BACK_MS: 170,          // вентиль закрывается
+  GUIDE_W: 0.09,               // пунктир дороги (видно, пока палец на подкове): ширина
+  STREAM_W: 0.05,              // столбик струи песка: радиус
+  GRAIN_Z: 0.02,               // песчинки струи — чуть перед столбиком
   SLIDE_SPEED: 7,              // цепочка съезжает по трубке, ячеек в секунду
   GRAIN_RATE: 150,             // песчинок в секунду в струйке
-  GRAIN_SPEED: 3.2,            // скорость песчинки по трубке клапана, ед./с
+  GRAIN_SPEED: 2.2,            // начальная скорость песчинки в струе, ед./с (дальше — с ускорением)
   POOL_GRAINS: 360, POOL_DROPS: 140, POOL_CONF: 220, POOL_STARS: 48,
   HEAP_H: 0.16,                // высота горки над краем песка в банке
   LID_MS: 460,                 // крышка опускается и закручивается
@@ -670,7 +643,7 @@ const VIEW = {                 // визуальные параметры (яд�
   SHELF_H: 0.5,                // высота полки (модель сплющена по высоте)
   SHELF_SINK: 0.03,            // банки чуть утоплены в полку
   LID_HOVER: 1.1,              // откуда прилетает крышка (над горлом)
-  BG_TOP: '#c9b8ff', BG_BOTTOM: '#8b72e8', GLASS_TINT: '#f1ecff', CLEAR_VALVE: '#eef1ff',
+  BG_TOP: '#c9b8ff', BG_BOTTOM: '#8b72e8', GLASS_TINT: '#f1ecff', RING_DROP: '#fff3b0',   // пунктир и ореол дороги в подкову ниже
 };
 const T0 = performance.now();
 const T = { off: 0 };
@@ -682,7 +655,7 @@ const PERF = {};                          // этапы старта, мс от 
 function mark(name){ PERF[name] = Math.round(performance.now() - T0); log('event', 'perf.' + name, PERF[name] + 'ms'); }
 mark('script');
 
-const SAVE_KEY = NAME + '.v3';          // v0.5 «Подковы»: свой прогресс, не смешивается с v0.3 (.v1) и v0.4 (.v2)
+const SAVE_KEY = NAME + '.v4';          // v0.6 «Проще»: свой прогресс, не смешивается с v0.3 (.v1), v0.4 (.v2), v0.5 (.v3)
 function loadSave(){ try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch (e) { return {}; } }
 function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(G.save)); } catch (e) {} }
 
@@ -780,17 +753,17 @@ function goto(screen, payload){
   ov.classList.add('show');
   if (screen === 'menu'){
     const cur = Math.min(G.save.level, LEVELS.length - 1);
-    card.innerHTML = `<h1 class="logo">Клапаны</h1><p>Крути подковы — песок сыплется с нижнего конца через клапан.<br>Насыпь каждую банку её цветом.</p>
+    card.innerHTML = `<h1 class="logo">Клапаны</h1><p>Крути подковы — песок сыплется с нижнего конца прямо вниз.<br>Насыпь каждую банку её цветом.</p>
       <button class="primary big" data-act="play">Играть · уровень ${cur + 1}</button>
       <div class="levels">${LEVELS.map((L, i) => `<button class="lv${G.save.done[i] ? ' done' : ''}${i === cur ? ' cur' : ''}" data-act="lv" data-i="${i}">${i + 1}</button>`).join('')}</div>
       <button data-act="help">Как играть</button>`;
   }
   if (screen === 'help') card.innerHTML = `<h2>Как играть</h2><ul class="rules">
-      <li><b>Крути подкову пальцем</b> — щелчками в любую сторону. <b>Тап</b> — один щелчок по часовой.</li>
-      <li>Песок лежит цепочкой и не смешивается. Сыплется только с <b>нижнего конца</b>, когда он встал в клапан.</li>
-      <li><b>Цвет клапана</b> — что он пропустит. Прозрачный пропускает любой. За раз проходит одна порция одного цвета.</li>
-      <li>С одного конца выйдет один цвет, с другого — другой. Банка берёт только свой цвет.</li>
-      <li>Подкова снизу примет песок, если её конец стоит во входе клапана. Зажми подкову — увидишь, что даст щелчок.</li></ul>
+      <li><b>Крути подкову пальцем</b> — в любую сторону. <b>Тап</b> — один щелчок по часовой.</li>
+      <li>Песок сыплется с <b>нижнего конца</b> прямо вниз: в воронку банки или в подкову ниже.</li>
+      <li>Банка берёт <b>только свой цвет</b>. Чужой цвет над воронкой не сыплется.</li>
+      <li>Подкова ниже примет песок, если её конец стоит прямо под струёй.</li>
+      <li>Зажми подкову — пунктир покажет, куда она сыплет.</li></ul>
       <button class="primary" data-act="menu">Понятно</button>`;
   if (screen === 'win'){
     const p = payload || {}, li = G.s ? G.s.li : 0;
@@ -864,7 +837,7 @@ function startLevel(li){
 // ===========================================================================
 let R3 = null;
 const GLB = {};                // id → модель из assets/models (если загрузилась)
-const MODEL_IDS = ['valve', 'lid', 'lock', 'stand'];
+const MODEL_IDS = ['lid', 'lock', 'stand'];                // v0.6: вентилей нет — модель valve не грузим
 
 // Шейдеры. Цвета в юниформах — линейные, в конце colorspace_fragment переводит в sRGB.
 const SH_VERT = `
@@ -939,56 +912,17 @@ void main(){
   gl_FragColor = vec4(c, clamp(a, 0.0, 0.95) * (uBack > 0.5 ? 0.45 : 1.0));
   #include <colorspace_fragment>
 }`;
-// Жёлоб клапана: непрозрачный открытый лоток цвета клапана. uv.x — поперёк дна (−1..1), 3 — кромка; uv.y — путь от выпуска, мировые ед.
-// Шевроны бегут вниз по пути (направление), песок струйкой — полоса по дну между uFlowA и uFlowB. uGlow — подсветка дороги при касании,
-// uDim — приглушить чужие дороги, пока палец на подкове.
-const SH_TROUGH_VERT = `
-varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+// Пунктир дороги: точки бегут вниз от устья к приёмнику (uv.y: 1 — верх). uA — прозрачность (подсветка при касании).
+const SH_GUIDE_VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const SH_GUIDE = `
+uniform vec3 uCol; uniform float uLen; uniform float uTime; uniform float uA; varying vec2 vUv;
 void main(){
-  vec4 w = modelMatrix * vec4(position, 1.0);
-  vUv = uv; vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz);
-  gl_Position = projectionMatrix * viewMatrix * w;
-}`;
-const SH_TROUGH = `
-uniform vec3 uCol; uniform vec3 uStripe; uniform vec3 uRim; uniform vec3 uLight; uniform float uTime; uniform float uPhase; uniform float uGlow; uniform float uDim;
-uniform float uFlowA; uniform float uFlowB; uniform vec3 uSandCol;
-varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
-float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-void main(){
-  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
-  float lam = 0.62 + 0.38 * clamp(dot(N, normalize(uLight)), 0.0, 1.0);
-  float x = vUv.x, s = vUv.y;
-  vec3 c;
-  float pulse = 0.55 + 0.45 * sin(uTime * 7.0);
-  if (x > 1.5) c = mix(uRim, vec3(1.0, 0.98, 0.85), uGlow * (0.6 + 0.4 * pulse));
-  else {
-    float ph = fract((s + abs(x) * 0.15) / 0.3 - uPhase);
-    float chev = smoothstep(0.0, 0.05, ph) * smoothstep(0.45, 0.39, ph);
-    c = mix(uCol, uStripe, chev);
-    c *= 0.74 + 0.26 * (1.0 - x * x);
-    float inFlow = step(uFlowA, s) * step(s, uFlowB) * step(abs(x), 0.62);
-    if (inFlow > 0.5){
-      float g = h3(floor(vec3((s - uTime * 2.6) * 55.0, x * 12.0, 1.0))), g2 = h3(floor(vec3((s - uTime * 2.1) * 23.0, x * 5.0, 3.0)));
-      vec3 sc = uSandCol * (0.78 + 0.3 * g + 0.12 * g2);
-      sc *= mix(0.7, 1.0, smoothstep(0.62, 0.45, abs(x)));
-      sc += vec3(1.0) * step(0.97, h3(floor(vec3((s - uTime * 2.6) * 80.0, x * 18.0, 5.0)))) * 0.3;
-      c = sc;
-    }
-  }
-  c *= lam;
-  if (x < 1.5) c *= 1.0 + 0.22 * uGlow * pulse;
-  float l = dot(c, vec3(0.3, 0.55, 0.15));
-  c = mix(c, mix(vec3(l), c, 0.45) * 0.82, uDim);
-  gl_FragColor = vec4(c, 1.0);
-  #include <colorspace_fragment>
-}`;
-// Ореол под жёлобом при подсветке: мягкая полоса цвета клапана, uv.x поперёк (−1..1).
-const SH_GLOW = `
-uniform vec3 uCol; uniform float uGlow; uniform float uTime;
-varying vec3 vW; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
-void main(){
-  float k = smoothstep(1.0, 0.5, abs(vUv.x));
-  gl_FragColor = vec4(uCol * 1.15 + vec3(0.06), uGlow * k * (0.8 + 0.2 * sin(uTime * 7.0)));
+  float s = (1.0 - vUv.y) * uLen;                       // путь от устья вниз, мировые ед.
+  float ph = fract(s / 0.2 - uTime * 2.2);
+  vec2 d = vec2((vUv.x - 0.5) * 0.09, (ph - 0.5) * 0.2);
+  float dot = smoothstep(0.036, 0.026, length(d));
+  float a = dot * uA * smoothstep(0.0, 0.08, s) * smoothstep(0.0, 0.08, uLen - s);
+  gl_FragColor = vec4(mix(uCol, vec3(1.0), 0.25), a);
   #include <colorspace_fragment>
 }`;
 const SH_BG_VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -1104,7 +1038,7 @@ function initRenderer(){
     rim: new THREE.TorusGeometry(1, 0.22, 8, 24),
     stem: new THREE.CylinderGeometry(0.035, 0.035, 1, 10),
     lip: new THREE.TorusGeometry(CFG.TUBE_R * 0.96, 0.034, 8, 28),
-    collar: new THREE.TorusGeometry(CFG.TUBE_R * 1.08, 0.055, 10, 32),
+    stream: new THREE.CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, -0.5, 0),     // столбик струи: верх в 0, вниз на 1
     funnel: new THREE.LatheGeometry(funnelProfile(), 36),
     jar: {}, jarSand: {},
   };
@@ -1116,7 +1050,7 @@ function initRenderer(){
     gold: new THREE.MeshStandardMaterial({ color: 0xffc21a, metalness: 1.0, roughness: 0.2 }),
     wood: new THREE.MeshStandardMaterial({ color: 0xd98a3d, metalness: 0.0, roughness: 0.55 }),
     blob: new THREE.MeshBasicMaterial({ map: radialTexture('blob'), transparent: true, depthWrite: false }),
-    ringShadow: new THREE.MeshBasicMaterial({ map: radialTexture('ring'), transparent: true, depthWrite: false }),
+    ringShadow: new THREE.MeshBasicMaterial({ map: radialTexture('ring'), transparent: true, depthWrite: false, opacity: 0.35 }),   // v0.6: тень слабее — тени малых подков не спорят с песком
     cross: new THREE.MeshBasicMaterial({ map: radialTexture('cross'), transparent: true, depthTest: false }),
     halo: new THREE.MeshBasicMaterial({ map: radialTexture('halo'), transparent: true, depthWrite: false, color: 0xfff3a0 }),
     line: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false }),
@@ -1124,7 +1058,8 @@ function initRenderer(){
     dot: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }),
     grain: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0 }),
     drop: new THREE.MeshBasicMaterial({ color: 0xffffff }),
-    collar: {}, funnel: {},
+    stream: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 }),
+    funnel: {},
   };
   // частицы: песчинки струйки и брызги/конфетти — по одному InstancedMesh, позиции считаются от абсолютного времени
   const grains = new THREE.InstancedMesh(geo.grain, mat.grain, VIEW.POOL_GRAINS); grains.renderOrder = 4; grains.count = 0; grains.frustumCulled = false;
@@ -1150,8 +1085,8 @@ function heapMaterial(c, x){
     uniforms: { uCol: { value: lin(COLORS[c].hex) }, uLight: { value: LIGHT_DIR }, uTop: { value: -99 }, uHeap: { value: 0 }, uC: { value: new THREE.Vector2(x, 0) }, uR: { value: CFG.JAR_W * 0.36 },
       uTime: { value: 0 }, uGhost: { value: 0 }, uGhostTop: { value: 0 }, uGhostC: { value: new THREE.Color() } } });
 }
-function valveColorHex(c){ return c ? COLORS[c].hex : VIEW.CLEAR_VALVE; }
-function collarMat(c){ const k = c || '_'; if (!R3.mat.collar[k]) R3.mat.collar[k] = new THREE.MeshStandardMaterial({ color: lin(valveColorHex(c)), metalness: c ? 0.1 : 0.6, roughness: c ? 0.3 : 0.15 }); return R3.mat.collar[k]; }
+// Цвет дороги: в банку — цвет банки (она и есть фильтр), в подкову ниже — светло-золотой (любой цвет).
+function dropColor(L, v){ const J = jarById(L, v.to); return lin(J ? COLORS[J.c].hex : VIEW.RING_DROP); }
 function funnelMat(c){ if (!R3.mat.funnel[c]) R3.mat.funnel[c] = new THREE.MeshStandardMaterial({ color: lin(COLORS[c].hex), metalness: 0.05, roughness: 0.32, side: THREE.DoubleSide }); return R3.mat.funnel[c]; }
 
 // --- GLB-загрузчик (минимальный glTF 2.0: меши, PBR-материалы, текстуры, иерархия). Взят из za-odnu-khodku без скиннинга. ---
@@ -1230,7 +1165,7 @@ function fitModel(model, size, axis){
 }
 async function loadModels(){
   let list = MODEL_IDS;
-  try { const r = await fetch('assets/models/manifest.json'); if (r.ok) list = (await r.json()).models || MODEL_IDS; } catch (e) {}
+  try { const r = await fetch('assets/models/manifest.json'); if (r.ok) list = ((await r.json()).models || MODEL_IDS).filter(id => MODEL_IDS.includes(id)); } catch (e) {}
   await Promise.all(list.map(async (id) => {
     try { GLB[id] = await loadGLB('assets/models/' + id + '.glb'); log('event', 'glb.loaded', id); } catch (e) { log('event', 'glb.fail', id + ': ' + e.message); }
   }));
@@ -1238,31 +1173,6 @@ async function loadModels(){
 }
 
 // --- построители деталей (процедурные — с запасным вариантом, если GLB не загрузился) ---
-// Вентиль клапана: модель Tripo (латунная муфта + штурвал), штурвал перекрашен в цвет клапана (красные тексели → цвет клапана).
-const WHEEL_MAT = {};
-function wheelMaterial(src, c){
-  const key = (c || '_') + src.uuid; if (WHEEL_MAT[key]) return WHEEL_MAT[key];
-  const m = src.clone(); const col = lin(valveColorHex(c));
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uTintC = { value: col };
-    sh.fragmentShader = 'uniform vec3 uTintC;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-      { float red = diffuseColor.r - max(diffuseColor.g, diffuseColor.b);
-        float k = smoothstep(0.12, 0.3, red);
-        float lum = dot(diffuseColor.rgb, vec3(0.6, 0.3, 0.1));
-        diffuseColor.rgb = mix(diffuseColor.rgb, uTintC * (0.55 + 1.4 * lum), k); }`);
-  };
-  m.customProgramCacheKey = () => 'wheelTint';
-  return (WHEEL_MAT[key] = m);
-}
-function makeWheel(c){
-  if (GLB.valve){ const g = fitModel(GLB.valve, VIEW.WHEEL_D); g.traverse(o => { if (o.isMesh) o.material = wheelMaterial(o.material, c); }); g.userData.glb = true; return g; }
-  const g = new THREE.Group(), d = VIEW.WHEEL_D, enamel = collarMat(c);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(d * 0.42, d * 0.07, 10, 28), enamel); rim.position.z = d * 0.25; g.add(rim);
-  for (let i = 0; i < 2; i++){ const sp = new THREE.Mesh(new THREE.CylinderGeometry(d * 0.05, d * 0.05, d * 0.84, 8), enamel); sp.rotation.z = i * Math.PI / 2; sp.position.z = d * 0.25; g.add(sp); }
-  const hub = new THREE.Mesh(R3.geo.sphere, R3.mat.brass); hub.scale.setScalar(d * 0.13); hub.position.z = d * 0.3; g.add(hub);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(d * 0.28, d * 0.3, d * 0.4, 18), R3.mat.brass); body.rotation.x = Math.PI / 2; g.add(body);
-  return g;
-}
 function makeLid(color){                 // крышка банки: модель Tripo, перекрашенная в цвет банки
   let g;
   if (GLB.lid){ g = fitModel(GLB.lid, CFG.JAR_W * 0.86, 'x'); g.traverse(o => { if (o.isMesh){ o.material = o.material.clone(); o.material.map = null; o.material.color = lin(COLORS[color].hex); o.material.metalness = 0.05; o.material.roughness = 0.3; o.material.roughnessMap = null; o.material.metalnessMap = null; } }); }
@@ -1279,73 +1189,8 @@ function makeShelf(width){               // полка под банками
   const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.BoxGeometry(width, 0.28, 1.1), R3.mat.wood); g.add(p);
   g.userData.size = new THREE.Vector3(width, 0.28, 1.1); return g;
 }
-// Муфта на трубке подковы в точке θ (как цветные муфты на референсе): тор вокруг трубки, ось — по касательной.
-function collarAt(p, deg, mat){
-  const m = new THREE.Mesh(R3.geo.collar, mat); m.position.set(p.x, p.y, 0);
-  m.rotation.set(0, Math.PI / 2, 0); m.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), Math.atan2(Math.sin(deg * DEG), -Math.cos(deg * DEG)) - Math.PI); return m;
-}
-// Ломаная трубки клапана → кривая для песчинок (точки + накопленная длина).
+// Путь песчинок (точки + накопленная длина).
 function polyline(pts){ const P = pts.map(p => new THREE.Vector3(p.x, p.y, p.z || 0)), S = [0]; for (let i = 1; i < P.length; i++) S.push(S[i - 1] + P[i].distanceTo(P[i - 1])); return { P, S, len: S[S.length - 1] }; }
-// Осевая жёлоба: ломаная клапана со скруглёнными изгибами (квадратичные Безье) → точки {x, y}.
-function troughCurve(P){
-  const out = [{ x: P[0].x, y: P[0].y }];
-  for (let i = 1; i < P.length - 1; i++){
-    const a = P[i - 1], b = P[i], c = P[i + 1], l1 = Math.hypot(b.x - a.x, b.y - a.y), l2 = Math.hypot(c.x - b.x, c.y - b.y);
-    const r = Math.min(VIEW.TROUGH_FILLET, l1 * 0.45, l2 * 0.45);
-    const p1 = { x: b.x + (a.x - b.x) / l1 * r, y: b.y + (a.y - b.y) / l1 * r }, p2 = { x: b.x + (c.x - b.x) / l2 * r, y: b.y + (c.y - b.y) / l2 * r };
-    for (let k = 0; k <= 8; k++){ const t = k / 8, u = 1 - t; out.push({ x: u * u * p1.x + 2 * u * t * b.x + t * t * p2.x, y: u * u * p1.y + 2 * u * t * b.y + t * t * p2.y }); }
-  }
-  out.push({ x: P[P.length - 1].x, y: P[P.length - 1].y });
-  return out.filter((p, i) => i === 0 || Math.hypot(p.x - out[i - 1].x, p.y - out[i - 1].y) > 1e-5);
-}
-// Жёлоб по осевой C: открытый к камере полужёлоб (дно — полукруг радиуса wi), кромка шириной w − wi, снаружи — полукруг w.
-// uv.x — поперёк дна (−1..1), 3 — кромка и низ; uv.y — путь от начала. Плюс лента ореола под ним (uv.x −1..1).
-function troughGeometry(C, w, wi, gw){
-  const n = C.length, S = [0];
-  for (let i = 1; i < n; i++) S.push(S[i - 1] + Math.hypot(C[i].x - C[i - 1].x, C[i].y - C[i - 1].y));
-  const prof = [], K = 10;
-  for (let k = 0; k <= K; k++){ const a = Math.PI * k / K; prof.push([wi * Math.cos(a), -wi * Math.sin(a), -Math.cos(a), Math.sin(a), Math.cos(a)]); }
-  prof.push([-wi, 0, 0, 1, 3], [-w, 0, 0, 1, 3]);
-  for (let k = K; k >= 0; k--){ const a = Math.PI * k / K; prof.push([w * Math.cos(a), -w * Math.sin(a), Math.cos(a), -Math.sin(a), 3]); }
-  prof.push([w, 0, 0, 1, 3], [wi, 0, 0, 1, 3]);
-  const m = prof.length, pos = [], nor = [], uv = [], idx = [], gpos = [], gnor = [], guv = [], gidx = [];
-  for (let i = 0; i < n; i++){
-    const d = (a, b) => { const x = C[b].x - C[a].x, y = C[b].y - C[a].y, l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
-    let t = i === 0 ? d(0, 1) : i === n - 1 ? d(n - 2, n - 1) : (() => { const p = d(i - 1, i), q = d(i, i + 1); return [p[0] + q[0], p[1] + q[1]]; })();
-    const tl = Math.hypot(t[0], t[1]) || 1, nx = -t[1] / tl, ny = t[0] / tl;
-    for (const [o, z, nn, nz, u] of prof){ pos.push(C[i].x + nx * o, C[i].y + ny * o, z); nor.push(nx * nn, ny * nn, nz); uv.push(u, S[i]); }
-    for (const u of [-1, 0, 1]){ gpos.push(C[i].x + nx * gw * u, C[i].y + ny * gw * u, -w - 0.03); gnor.push(0, 0, 1); guv.push(u, S[i]); }
-  }
-  for (let i = 0; i < n - 1; i++){
-    for (let k = 0; k < m - 1; k++){ const a = i * m + k, b = a + 1, c = a + m, e = c + 1; idx.push(a, c, b, b, c, e); }
-    for (let k = 0; k < 2; k++){ const a = i * 3 + k, b = a + 1, c = a + 3, e = c + 1; gidx.push(a, c, b, b, c, e); }
-  }
-  const mk = (P, N, U, I) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); return g; };
-  return { geo: mk(pos, nor, uv, idx), glow: mk(gpos, gnor, guv, gidx), len: S[n - 1] };
-}
-function troughMaterial(c){
-  const col = lin(valveColorHex(c)), white = new THREE.Color(1, 1, 1);
-  return new THREE.ShaderMaterial({ vertexShader: SH_TROUGH_VERT, fragmentShader: SH_TROUGH + COLD, side: THREE.DoubleSide,
-    uniforms: { uCol: { value: c ? col : lin(VIEW.CLEAR_TROUGH) }, uStripe: { value: c ? col.clone().lerp(white, 0.5) : lin(VIEW.CLEAR_STRIPE) },
-      uRim: { value: c ? col.clone().multiplyScalar(0.42) : lin(VIEW.CLEAR_RIM) }, uLight: { value: LIGHT_DIR }, uTime: { value: 0 }, uPhase: { value: 0 },
-      uGlow: { value: 0 }, uDim: { value: 0 }, uFlowA: { value: -1 }, uFlowB: { value: -1 }, uSandCol: { value: new THREE.Color(1, 1, 1) } } });
-}
-// Жёлоб клапана по ломаной valvePath: начало прячется под трубкой подковы, у входа подковы-приёмника конец — над её трубкой.
-// Короткие (0,05) вертикальные хвостики у трубок выбрасываем: на них изгиб сложил бы жёлоб.
-function makeTrough(P, c, toJar){
-  const Q = P.map(p => ({ x: p.x, y: p.y })), own = (m) => { m.userData.ownMat = true; m.userData.ownGeo = true; return m; };
-  Q[0].y -= CFG.TUBE_R * 0.75;
-  if (!toJar) Q[Q.length - 1].y += CFG.TUBE_R * 0.75;
-  if (Q.length > 2 && Math.hypot(Q[1].x - Q[0].x, Q[1].y - Q[0].y) < 0.12) Q.splice(1, 1);
-  if (Q.length > 2 && Math.hypot(Q[Q.length - 1].x - Q[Q.length - 2].x, Q[Q.length - 1].y - Q[Q.length - 2].y) < 0.12) Q.splice(Q.length - 2, 1);
-  const C = troughCurve(Q), T = troughGeometry(C, VIEW.TROUGH_W, VIEW.TROUGH_WI, VIEW.GLOW_W);
-  const mesh = own(new THREE.Mesh(T.geo, troughMaterial(c))); mesh.renderOrder = 1;
-  const glow = own(new THREE.Mesh(T.glow, new THREE.ShaderMaterial({ vertexShader: SH_TROUGH_VERT, fragmentShader: SH_GLOW + COLD, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    uniforms: { uCol: { value: lin(valveColorHex(c)) }, uGlow: { value: 0 }, uTime: { value: 0 } } })));
-  glow.renderOrder = 0; glow.visible = false;
-  return { mesh, glow, curve: C, len: T.len, off: Math.hypot(C[0].x - P[0].x, C[0].y - P[0].y) };
-}
 function polyAt(pl, s, out){ s = Math.max(0, Math.min(pl.len, s)); let i = 1; while (i < pl.S.length - 1 && pl.S[i] < s) i++; const k = (s - pl.S[i - 1]) / Math.max(1e-6, pl.S[i] - pl.S[i - 1]); return out.lerpVectors(pl.P[i - 1], pl.P[i], k); }
 
 // --- сборка уровня ---
@@ -1379,18 +1224,15 @@ function buildLevel(L, noWarm){
   const root = new THREE.Group(), lv = { L, root, rings: [], jars: [], valves: [] };
   const own = (m) => { m.userData.ownMat = true; return m; };
   L.rings.forEach((r, ri) => {
-    const g = new THREE.Group(); g.position.set(r.x, r.y, 0);
-    const sh = new THREE.Mesh(R3.geo.plane, R3.mat.ringShadow); sh.scale.setScalar(3.1); sh.position.set(r.x + 0.22, r.y - 0.3, -5.9); sh.renderOrder = -5; root.add(sh);
-    for (let k = 0; k < CFG.POS; k++){          // щелчки — точки по ободу на полушагах, где встают концы (неподвижны)
-      const p = rimAt({ x: 0, y: 0 }, -22.5 + 45 * k), d = new THREE.Mesh(R3.geo.dot, R3.mat.dot), s = (CFG.RING_R + CFG.TUBE_R + 0.085) / CFG.RING_R;
-      d.position.set(p.x * s, p.y * s, -0.02); d.scale.setScalar(0.042); d.renderOrder = 0; g.add(d);
-    }
+    const g = new THREE.Group(), sc = r.s || 1; g.position.set(r.x, r.y, 0); g.scale.setScalar(sc);      // малая подкова — та же модель в масштабе
+    const sh = new THREE.Mesh(R3.geo.plane, R3.mat.ringShadow); sh.scale.setScalar(3.1 * sc); sh.position.set(r.x + 0.22 * sc, r.y - 0.3 * sc, -5.9); sh.renderOrder = -5; root.add(sh);
+    // v0.6: точек-щелчков по ободу нет — меньше деталей на поле (комментарий Веры 06.11)
     const hs = makeHorseshoe(ri); g.add(hs.rot);
     // устье: мягкое свечение у выпуска, где сейчас стоит конец (неподвижно, по точкам BL/BR)
     const mouths = {};
     for (const at of ['BL', 'BR']){
       const v = valveAt(L, ri, at), p = rimAt({ x: 0, y: 0 }, SPOT_DEG[at]);
-      const m = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('soft'), color: v ? (v.c ? lin(COLORS[v.c].hex) : new THREE.Color('#ffc928')) : new THREE.Color(1, 1, 1), transparent: true, depthWrite: false, opacity: 0, blending: THREE.AdditiveBlending })));
+      const m = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('soft'), color: v ? dropColor(L, v) : new THREE.Color(1, 1, 1), transparent: true, depthWrite: false, opacity: 0, blending: THREE.AdditiveBlending })));
       m.position.set(p.x, p.y, 0.3); m.scale.setScalar(0.62); m.renderOrder = 0; m.visible = false; g.add(m); mouths[at] = { m, v, k: 0 };
     }
     let lock = null, tag = null;
@@ -1431,52 +1273,35 @@ function buildLevel(L, noWarm){
     wave.position.set(j.x, CFG.JAR_FLOOR + h + 0.1, 0.5); wave.visible = false; wave.renderOrder = 5; root.add(wave);
     lv.jars.push({ id: j.id, g, sand, funnel, lid, lidHome, lidOpen, closed: false, h, V: 0, bump: 0, wave, order: 0 });
   });
-  // клапаны: цветная муфта на выпуске + вентиль Tripo, цветной жёлоб с шевронами, муфта на входе подковы-приёмника
+  // дороги v0.6: жёлобов и вентилей нет — песок падает отвесно. В покое между подковой и приёмником пусто; пока палец на подкове
+  // (или подсказка), её дороги видны пунктиром цвета приёмника, а у точки падения — ореол. Струя песка при пересыпании — столбик + песчинки.
   L.valves.forEach((v, vi) => {
-    const P = valvePath(L, v), cm = collarMat(v.c), g = new THREE.Group(), toJar = !!jarById(L, v.to);
-    g.add(collarAt(P[0], SPOT_DEG[v.at], cm));
-    const tr = makeTrough(P, v.c, toJar);
-    tr.mesh.position.z = vi * 0.004; tr.glow.position.z = vi * 0.004;       // дороги, сходящиеся у одной воронки, не мерцают
-    g.add(tr.mesh, tr.glow);
-    // вентиль: на длинной дороге — поверх начала жёлоба; на короткой (меж подков 0,35) он закрыл бы весь жёлоб — сбоку, снаружи, на штоке
-    const wheel = makeWheel(v.c), plen = P.slice(1).reduce((a, q, i) => a + Math.hypot(q.x - P[i].x, q.y - P[i].y), 0), side = plen < VIEW.SHORT_ROUTE ? (v.at === 'BL' ? -1 : 1) : 0;
-    wheel.position.set(P[0].x + side * VIEW.WHEEL_SIDE_X, P[0].y - (side ? VIEW.WHEEL_SIDE_Y : CFG.TUBE_R + 0.12), 0.16); g.add(wheel);
-    if (side){ const st = new THREE.Mesh(R3.geo.stem, R3.mat.brass), x0 = P[0].x + side * (VIEW.TROUGH_W - 0.02), x1 = wheel.position.x;
-      st.scale.set(1, Math.abs(x1 - x0), 1); st.rotation.z = Math.PI / 2; st.position.set((x0 + x1) / 2, wheel.position.y, 0.06); g.add(st); }
-    const end = P[P.length - 1];
-    if (!toJar) g.add(collarAt(end, SPOT_DEG[v.in], cm));
-    else { const rim = new THREE.Mesh(R3.geo.rim, cm); rim.scale.setScalar(VIEW.TROUGH_W * 1.25); rim.rotation.x = Math.PI / 2; rim.position.set(end.x, end.y + 0.02, 0); g.add(rim); }
-    // куда ведёт дорога: ореол цвета клапана над воронкой банки или над входом подковы — виден при подсветке
-    const eg = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('halo'), color: lin(valveColorHex(v.c)), transparent: true, depthWrite: false })));
-    const endS = toJar ? 1.25 : 0.8; eg.scale.setScalar(endS); eg.position.set(end.x, end.y + (toJar ? 0.05 : 0), 0.35); eg.renderOrder = 4; eg.visible = false; g.add(eg);
-    root.add(g);
-    lv.valves.push({ id: v.id, g, wheel, wheelBase: wheel.rotation.z, v, mat: tr.mesh.material, glowMesh: tr.glow, endGlow: eg, endS, curve: tr.curve, len: tr.len, off: tr.off, glow: 0, dim: 0, phase: vi * 0.37 });
+    const P = valvePath(L, v), col = dropColor(L, v), toJar = !!jarById(L, v.to), len = P[0].y - P[1].y;
+    const guide = own(new THREE.Mesh(R3.geo.plane, new THREE.ShaderMaterial({ vertexShader: SH_GUIDE_VERT, fragmentShader: SH_GUIDE + COLD, transparent: true, depthWrite: false,
+      uniforms: { uCol: { value: col.clone() }, uLen: { value: len }, uTime: { value: 0 }, uA: { value: 0 } } })));
+    guide.userData.ownGeo = false; guide.scale.set(VIEW.GUIDE_W, len, 1); guide.position.set(P[0].x, (P[0].y + P[1].y) / 2, 0.25); guide.renderOrder = 4; guide.visible = false; root.add(guide);
+    const eg = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('halo'), color: col.clone(), transparent: true, depthWrite: false })));
+    const endS = toJar ? 1.1 : 0.7; eg.scale.setScalar(endS); eg.position.set(P[1].x, P[1].y + (toJar ? 0.02 : 0), 0.35); eg.renderOrder = 4; eg.visible = false; root.add(eg);
+    lv.valves.push({ id: v.id, v, guide, endGlow: eg, endS, P, len, glow: 0 });
   });
-  // заглушки: выпуски подковы без клапана — видны, пока палец на подкове
-  L.rings.forEach((r, ri) => {
-    lv.rings[ri].plugs = []; lv.rings[ri].plugK = 0;
-    for (const at of ['BL', 'BR']){
-      if (valveAt(L, ri, at)) continue;
-      const p = spotPos(r, at), m = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('plug'), transparent: true, depthTest: false, opacity: 0 })));
-      m.position.set(p.x, p.y - CFG.TUBE_R - 0.13, 0.5); m.scale.setScalar(0.3); m.renderOrder = 6; m.visible = false; root.add(m); lv.rings[ri].plugs.push(m);
-    }
-  });
+  // струя песка: столбик цвета песка от устья вниз, голова и хвост бегут с ускорением (как песчинки)
+  const stream = new THREE.Mesh(R3.geo.stream, R3.mat.stream); stream.visible = false; stream.renderOrder = 3; root.add(stream); lv.stream = stream;
   R3.scene.add(root); R3.level = lv;
-  // призрак следующего щелчка: контур подковы, ореол над клапаном, крестик «не пройдёт»
+  // призрак следующего щелчка: контур подковы, ореол над устьем, крестик «не пройдёт»
   const ghost = new THREE.Mesh(R3.geo.ghost, R3.mat.ghost); ghost.visible = false; ghost.renderOrder = 5; root.add(ghost);
   const halo = new THREE.Mesh(R3.geo.plane, R3.mat.halo); halo.visible = false; halo.renderOrder = 4; root.add(halo);
   const cross = new THREE.Mesh(R3.geo.plane, R3.mat.cross); cross.scale.setScalar(0.34); cross.visible = false; cross.renderOrder = 7; root.add(cross);
   Object.assign(lv, { ghost, halo, cross });
-  // кадр по полю: подковы, трубки, банки
+  // кадр по полю: подковы, банки
   let x0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const r of L.rings){ x0 = Math.min(x0, r.x - CFG.RING_R - CFG.TUBE_R - 0.15); x1 = Math.max(x1, r.x + CFG.RING_R + CFG.TUBE_R + 0.15); y1 = Math.max(y1, r.y + CFG.RING_R + CFG.TUBE_R + 0.15); }
+  for (const r of L.rings){ const e = ringR(r) + tubeR(r) + 0.15; x0 = Math.min(x0, r.x - e); x1 = Math.max(x1, r.x + e); y1 = Math.max(y1, r.y + e); }
   for (const j of L.jars){ x0 = Math.min(x0, j.x - CFG.JAR_W / 2 - 0.3); x1 = Math.max(x1, j.x + CFG.JAR_W / 2 + 0.3); }
   const padW = Math.max(0, VIEW.MIN_W - (x1 - x0)) / 2;
   lv.box = { x0: x0 - VIEW.MARGIN_X - padW, x1: x1 + VIEW.MARGIN_X + padW, y0: lv.shelfBottom - 0.2, y1: y1 + VIEW.MARGIN_TOP + 0.5 };
   frameCamera();
   syncView(now());
   if (!noWarm) warmUp();
-  log('event', 'level.built', 'rings=' + L.rings.length + ' jars=' + L.jars.length + ' valves=' + L.valves.length);
+  log('event', 'level.built', 'rings=' + L.rings.length + ' jars=' + L.jars.length + ' drops=' + L.valves.length);
 }
 function frameCamera(){
   if (!R3 || !R3.level) return;
@@ -1490,7 +1315,7 @@ function frameCamera(){
 // Прогрев: один раз нарисовать то, что появится позже (дозы, призрак, крестик, ореол, песчинки), потом скрыть.
 function warmUp(){
   const lv = R3.level; if (!lv) return;
-  const show = [lv.ghost, lv.halo, lv.cross, ...lv.rings.flatMap(R => R.doses.concat(R.plugs, Object.values(R.mouths).map(M => M.m))), ...lv.jars.map(J => J.lid), ...lv.jars.map(J => J.wave), ...lv.valves.flatMap(V => [V.glowMesh, V.endGlow])];
+  const show = [lv.ghost, lv.halo, lv.cross, lv.stream, ...lv.rings.flatMap(R => R.doses.concat(Object.values(R.mouths).map(M => M.m))), ...lv.jars.map(J => J.lid), ...lv.jars.map(J => J.wave), ...lv.valves.flatMap(V => [V.guide, V.endGlow])];
   const was = show.map(o => o.visible);
   show.forEach(o => { o.visible = true; });
   R3.grains.count = 1; R3.drops.count = 1; R3.conf.count = 1; R3.stars.count = 1;
@@ -1562,40 +1387,26 @@ function syncView(tNow){
   applyPreview(time);
   applyRoutes(tNow, time);
 }
-// Дороги: палец на подкове (или подсказка) — её жёлоба светятся цветом клапана, у цели ореол, остальные дороги приглушены,
-// на выпусках без клапана — заглушки. Шевроны бегут всегда, на дороге следующего щелчка и при пересыпании — быстрее.
-// Во время пересыпания по дну жёлоба бежит полоса песка (голова и хвост — как у струйки песчинок).
+// Дороги: палец на подкове (или подсказка) — её дороги видны пунктиром цвета приёмника, у точки падения — ореол.
+// Дорога следующего щелчка — ярче. В покое дорог не видно: на поле только подковы, песок и банки.
 let lastRoutes = 0;
 function applyRoutes(tNow, time){
   const lv = R3.level, L = G.view.L, dt = Math.min(0.1, Math.max(0, (tNow - (lastRoutes || tNow)) / 1000)); lastRoutes = tNow;
-  const fid = lv.focus >= 0 ? L.rings[lv.focus].id : null, pour = G.pour, k = Math.min(1, dt * 14), ts = G.timeScale;
+  const fid = lv.focus >= 0 ? L.rings[lv.focus].id : null, k = Math.min(1, dt * 14);
   for (const V of lv.valves){
-    const mine = fid !== null && V.v.from === fid, tgt = mine && V.id === lv.pvValve, pouring = !!(pour && pour.info.valve === V.id);
-    V.glow += ((mine ? (tgt ? 1 : 0.85) : 0) - V.glow) * k;
-    V.dim += ((fid !== null && !mine ? 1 : 0) - V.dim) * k;
-    V.phase += (tgt || pouring ? VIEW.CHEV_FAST : VIEW.CHEV_SPEED) * dt * ts;
-    const u = V.mat.uniforms; u.uTime.value = time; u.uPhase.value = V.phase; u.uGlow.value = V.glow * 0.7; u.uDim.value = V.dim * 0.5;
-    const on = V.glow > 0.02; V.glowMesh.visible = on; V.endGlow.visible = on;
-    if (on){ V.glowMesh.material.uniforms.uGlow.value = V.glow; V.glowMesh.material.uniforms.uTime.value = time;
-      V.endGlow.material.opacity = Math.min(1, V.glow * 1.2); V.endGlow.scale.setScalar(V.endS * (1 + 0.08 * Math.sin(time * 7))); }
-    if (pouring && pour.path){
-      const tS = pour.tA - 120 / ts, tE = pour.tB - 60 / ts, at = (t0) => { const t = Math.max(0, (tNow - t0) / 1000 * ts); return VIEW.GRAIN_SPEED * t + 2.2 * t * t - V.off; };
-      u.uFlowB.value = tNow >= tS ? at(tS) : -1; u.uFlowA.value = tNow >= tE ? at(tE) : -0.5;
-      if (V.sandC !== pour.info.color){ u.uSandCol.value.set(COLORS[pour.info.color].hex); V.sandC = pour.info.color; }
-    } else { u.uFlowA.value = -1; u.uFlowB.value = -1; }
+    const mine = fid !== null && V.v.from === fid, tgt = mine && V.id === lv.pvValve;
+    V.glow += ((mine ? (tgt ? 1 : 0.55) : 0) - V.glow) * k;
+    const on = V.glow > 0.02; V.guide.visible = on; V.endGlow.visible = on;
+    if (on){ const u = V.guide.material.uniforms; u.uA.value = Math.min(1, V.glow * 1.1); u.uTime.value = time;
+      V.endGlow.material.opacity = Math.min(1, V.glow); V.endGlow.scale.setScalar(V.endS * (1 + 0.08 * Math.sin(time * 7))); }
   }
-  lv.rings.forEach((R, ri) => {
-    if (!R.plugs.length) return;
-    R.plugK += ((ri === lv.focus ? 1 : 0) - R.plugK) * k;
-    for (const m of R.plugs){ m.visible = R.plugK > 0.02; m.material.opacity = R.plugK; m.scale.setScalar(0.3 * (0.7 + 0.3 * R.plugK)); }
-  });
   applyMouths(tNow, time, k);
 }
-// Устье: конец, который стоит на выпуске (BL/BR), — «отсюда сыплется». Кромка этого конца — цвета клапана и чуть крупнее,
-// стеклянная заглушка снята (конец открыт), за устьем — мягкое свечение цвета клапана. Без клапана — кромка серая, конец закрыт.
+// Устье: конец, который стоит на выпуске (BL/BR), — «отсюда сыплется». Кромка этого конца — цвета банки под ним (над подковой — золото)
+// и чуть крупнее, стеклянная заглушка снята (конец открыт), за устьем — мягкое свечение того же цвета.
 // Второй конец — тонкая белая кромка: видно, что это тоже отверстие. При пересыпании кромка вспыхивает.
 const _lipC = new THREE.Color(), _white = new THREE.Color(1, 1, 1), _grey = new THREE.Color('#8f86b8'), _gold = new THREE.Color('#ffc928');
-const mouthColor = (v) => v.c ? lin(COLORS[v.c].hex) : _gold;      // у прозрачного клапана устье золотое: белое не отличить от простой кромки
+const mouthColor = (v) => { const J = jarById(G.view.L, v.to); return J ? lin(COLORS[J.c].hex) : _gold; };   // над банкой — её цвет, над подковой — золото
 function applyMouths(tNow, time, k){
   const lv = R3.level, L = G.view.L;
   lv.rings.forEach((R, ri) => {
@@ -1619,7 +1430,7 @@ function applyMouths(tNow, time, k){
   });
 }
 // Превью: пока палец на подкове — контур подковы в следующем щелчке по направлению драга (у тапа — по часовой) и что пересыплется:
-// уходящие дозы мигают, ореол над клапаном, «призрак» прихода в банке. Не пройдёт — крестик на клапане. Подсказка показывает то же.
+// уходящие дозы мигают, ореол над устьем, «призрак» прихода в банке. Не пройдёт — крестик под устьем. Подсказка показывает то же.
 function previewMove(){
   const P = G.press;
   if (P && !G.pour) return { m: moveOf(P.ri, P.dir || 1), hint: false };
@@ -1635,12 +1446,12 @@ function applyPreview(time){
   if (info.code === 'locked') return;
   lv.pvValve = info.valve || null;
   const pulse = 1 + 0.1 * Math.sin(time * 9);
-  lv.ghost.visible = true; lv.ghost.position.set(r.x, r.y, 0.01); lv.ghost.rotation.z = -(lv.rings[ri].cont + info.dir) * STEP;
+  lv.ghost.visible = true; lv.ghost.position.set(r.x, r.y, 0.01); lv.ghost.scale.setScalar(r.s || 1); lv.ghost.rotation.z = -(lv.rings[ri].cont + info.dir) * STEP;
   const valve = info.valve ? L.valves.find(v => v.id === info.valve) : null;
   if (!valve) return;
   const p0 = spotPos(ringById(L, valve.from), valve.at);
   if (info.code === 'ok'){
-    lv.halo.visible = true; lv.halo.position.set(p0.x, p0.y - 0.05, 0.3); lv.halo.scale.setScalar(0.75 * pulse);
+    lv.halo.visible = true; lv.halo.position.set(p0.x, p0.y - 0.05, 0.3); lv.halo.scale.setScalar(0.75 * pulse * (ringById(L, valve.from).s || 1));
     const R = lv.rings[info.src], arr = G.view.rings[info.src];         // уходящие дозы мигают
     for (let q = 0; q < info.amount; q++){ const j = info.srcEnd ? arr.length - 1 - q : q; if (R.doses[j]) R.doses[j].material.uniforms.uBlink.value = 1; }
     if (info.ji !== undefined){ const J = lv.jars[info.ji], u = J.sand.material.uniforms; u.uGhost.value = 1; u.uGhostC.value.set(COLORS[info.color].hex);
@@ -1684,26 +1495,25 @@ function turnRing(ri, dir, how){
   hud();
   return true;
 }
-// Путь песчинок: конец подковы → трубка клапана → в банку до горки или по трубке приёмника к его цепочке.
+// Путь песчинок: из устья отвесно вниз — в банку до горки или во вход подковы ниже и по её трубке к цепочке.
 function pourPath(info){
-  const L = G.s.L, v = L.valves.find(x => x.id === info.valve), V = R3.level.valves.find(x => x.id === info.valve), p0 = valvePath(L, v)[0];
-  const pts = [{ x: p0.x, y: p0.y, z: 0.02 }, ...V.curve.map(p => ({ x: p.x, y: p.y, z: VIEW.GRAIN_Z }))];
-  if (info.ji !== undefined){ const J = L.jars[info.ji], last = pts[pts.length - 1]; pts.push({ x: last.x, y: CFG.JAR_FLOOR + 0.1 + G.view.jars[info.ji] * CFG.JAR_DOSE_H, z: 0.05 }); }
-  else {                                            // по дуге приёмника от входа к концу его цепочки
+  const L = G.s.L, v = L.valves.find(x => x.id === info.valve), P = valvePath(L, v), p0 = P[0];
+  const pts = [{ x: p0.x, y: p0.y, z: VIEW.GRAIN_Z }];
+  if (info.ji !== undefined) pts.push({ x: p0.x, y: CFG.JAR_FLOOR + 0.1 + G.view.jars[info.ji] * CFG.JAR_DOSE_H, z: 0.05 });
+  else {                                            // во вход и по дуге приёмника от входа к концу его цепочки
     const r = ringById(L, v.to), n = G.view.rings[info.ti].length, o = G.s.ang[info.ti], a0 = endDeg(o, info.toEnd);   // угол входа в той же развёртке, что и ячейки
     const D = R3.level.rings[info.ti], endPos = info.toEnd === 0 ? D.pT - 0.5 : D.pT + n + 0.5;   // середина первой входящей дозы
     const a1 = 45 * (o + endPos - 0.5);
-    for (let i = 1; i <= 10; i++){ const a = a0 + (a1 - a0) * i / 10; const p = rimAt(r, a); pts.push({ x: p.x, y: p.y, z: 0.02 }); }
+    for (let i = 0; i <= 10; i++){ const a = a0 + (a1 - a0) * i / 10; const p = rimAt(r, a); pts.push({ x: p.x, y: p.y, z: 0.02 }); }
   }
   return polyline(pts);
 }
 function denyText(info){
   const C = (c) => COLORS[c];
   if (info.code === 'locked') return 'Замок: сначала насыпь ' + C(info.lock).acc + ' банку';
-  if (info.code === 'wrongValve') return 'У конца ' + C(info.color).nom + ', а клапан ' + C(info.vc).nom;
   if (info.code === 'wrongJar') return cap1(C(info.color).nom) + ' в ' + C(info.jarColor).acc + ' банку не сыплется';
   if (info.code === 'jarFull') return 'Банка уже полна';
-  if (info.code === 'closedBelow') return 'Снизу подкова ' + info.to + ' не подставила конец';
+  if (info.code === 'closedBelow') return 'Подкова ' + info.to + ' снизу не подставила конец';
   if (info.code === 'ringFull') return 'Подкова ' + info.to + ' полна';
   return '';
 }
@@ -1820,7 +1630,7 @@ function updateParts(tNow){
   R3.stream = R3.stream.filter(q => tNow - q.t0 < q.life);
   for (const q of R3.stream){
     if (ng >= VIEW.POOL_GRAINS) break;
-    const t = (tNow - q.t0) / 1000 * G.timeScale, s = q.v * t + 2.2 * t * t;
+    const t = (tNow - q.t0) / 1000 * G.timeScale, s = q.v * t + 4.5 * t * t;
     if (s >= q.path.len){ q.life = 0; continue; }
     polyAt(q.path, s, _p); _p.x += q.jx; _p.z += q.jz; _p.y += q.jy;
     _e.set(q.rx + t * 9, q.ry + t * 7, 0); _q.setFromEuler(_e); _s.setScalar(q.size); _m.compose(_p, _q, _s);
@@ -1871,21 +1681,27 @@ function updateFx(tNow){
 function updatePour(tNow){
   const P = G.pour, lv = R3 && R3.level;
   if (!lv) return;
-  if (!P){ for (const V of lv.valves) V.wheel.rotation.z = V.wheelBase; return; }
+  if (!P){ if (lv.stream) lv.stream.visible = false; return; }
   const ts = G.timeScale, info = P.info, V = lv.valves.find(x => x.id === info.valve);
   if (tNow >= P.t0 && !P.opened){ P.opened = true; Snd.click(); buzz(8);
     const S = lv.rings[info.src]; if (S && S.ends[info.srcEnd]) S.ends[info.srcEnd].flash = tNow;
-    if (V){ const q = V.curve[0]; puffAt(new THREE.Vector3(q.x, q.y + 0.08, 0.3), COLORS[info.color].hex, 7); } setTimeout(() => Snd.sand(info.amount * CFG.POUR_MS / ts + 150, info.ji !== undefined, P.fillFrac), (CFG.VALVE_MS + 60) / ts); }
-  // вентиль: поворот на открытие, потом обратно
-  const kOpen = Math.min(1, Math.max(0, (tNow - P.t0) / (CFG.VALVE_MS / ts))), kClose = Math.min(1, Math.max(0, (tNow - P.tB) / (VIEW.WHEEL_BACK_MS / ts)));
-  if (V) V.wheel.rotation.z = V.wheelBase - VIEW.WHEEL_TURN * (ease.back(kOpen) - ease.inOut(kClose));
-  // струйка песчинок: из конца подковы через клапан
+    if (V){ const q = V.P[0]; puffAt(new THREE.Vector3(q.x, q.y - 0.05, 0.3), COLORS[info.color].hex, 7); } setTimeout(() => Snd.sand(info.amount * CFG.POUR_MS / ts + 150, info.ji !== undefined, P.fillFrac), (CFG.VALVE_MS + 60) / ts); }
+  // струя: столбик песка от устья вниз до приёмника; голова и хвост бегут с ускорением, как песчинки
+  if (V && lv.stream){
+    const fall = V.len + (info.ji !== undefined ? Math.max(0, V.P[1].y - (CFG.JAR_FLOOR + 0.1 + lv.jars[info.ji].V * CFG.JAR_DOSE_H)) : 0.1);
+    const at = (t0) => { const t = Math.max(0, (tNow - t0) / 1000 * ts); return VIEW.GRAIN_SPEED * t + 4.5 * t * t; };
+    const tS = P.tA - 120 / ts, tE = P.tB - 60 / ts, head = tNow >= tS ? Math.min(fall, at(tS)) : 0, tail = tNow >= tE ? Math.min(fall, at(tE)) : 0;
+    const on = head - tail > 0.01; lv.stream.visible = on;
+    if (on){ if (lv.streamC !== info.color){ R3.mat.stream.color.set(COLORS[info.color].hex); lv.streamC = info.color; }
+      const w = VIEW.STREAM_W * (1 + 0.12 * Math.sin(tNow / 37)); lv.stream.position.set(V.P[0].x, V.P[0].y - tail, 0); lv.stream.scale.set(w, head - tail, w); }
+  }
+  // песчинки: из устья вниз
   if (P.path && tNow >= P.nextGrain && tNow < P.tB - 60 / ts){
     const col = lin(COLORS[info.color].hex);
     while (P.nextGrain <= tNow && P.nextGrain < P.tB - 60 / ts){
       P.nextGrain += 1000 / VIEW.GRAIN_RATE / ts;
       const sh = 0.75 + rndFx() * 0.45;
-      R3.stream.push({ path: P.path, t0: P.nextGrain, life: 2500, v: VIEW.GRAIN_SPEED * (0.85 + rndFx() * 0.3), jx: (rndFx() - 0.5) * 0.1, jy: 0, jz: (rndFx() - 0.5) * 0.06,
+      R3.stream.push({ path: P.path, t0: P.nextGrain, life: 2500, v: VIEW.GRAIN_SPEED * (0.85 + rndFx() * 0.3), jx: (rndFx() - 0.5) * 0.13, jy: 0, jz: (rndFx() - 0.5) * 0.1,
         rx: rndFx() * 6, ry: rndFx() * 6, size: 0.016 + rndFx() * 0.014, color: col.clone().multiplyScalar(sh) });
       if (R3.stream.length > VIEW.POOL_GRAINS) R3.stream.shift();
     }
@@ -1905,7 +1721,7 @@ function updatePour(tNow){
 const cv = $('gl');
 function ringScreen(ri){
   const r = G.s.L.rings[ri], rect = cv.getBoundingClientRect();
-  const c = new THREE.Vector3(r.x, r.y, 0).project(R3.camera), e = new THREE.Vector3(r.x + CFG.RING_R, r.y, 0).project(R3.camera);
+  const c = new THREE.Vector3(r.x, r.y, 0).project(R3.camera), e = new THREE.Vector3(r.x + ringR(r), r.y, 0).project(R3.camera);
   const x = (c.x + 1) / 2 * rect.width, y = (1 - c.y) / 2 * rect.height, ex = (e.x + 1) / 2 * rect.width;
   return { x, y, rpx: Math.abs(ex - x) };
 }
@@ -1994,6 +1810,7 @@ function renderFrame(){
     if (F && F.noParts){ R3.grains.count = 0; R3.drops.count = 0; R3.conf.count = 0; R3.stars.count = 0; }
     applyPunch(tNow);
   }
+  updatePic(tNow);
   R3.renderer.render(R3.scene, R3.camera);
   const dt = performance.now() - t0;
   R3.frames.push(dt); if (R3.frames.length > 240) R3.frames.shift();
@@ -2002,6 +1819,27 @@ function renderFrame(){
     goto('win', { clean, last: G.s.li >= LEVELS.length - 1 });
   }
   if (toastUntil && tNow > toastUntil){ $('toast').classList.add('hide'); toastUntil = 0; }
+}
+// Подсказка картинкой на уровнях с pic: палец на подкове A — 'tap' тапает (круг-волна), 'drag' ведёт её низ слева направо
+// (против часовой) по пунктирной дуге со стрелкой. Пропадает после первого щелчка уровня.
+function updatePic(tNow){
+  const el = $('pic'), L = G.s && G.s.L, on = !!(L && L.pic && G.screen === 'game' && !G.s.moves && !G.press && !G.pour && R3 && R3.level);
+  el.classList.toggle('show', on); if (!on) return;
+  const sc = ringScreen(0), t = (tNow / 1000) % 1.6, hand = $('pic-hand'), ring = $('pic-ring'), arc = $('pic-arc'), head = $('pic-head');
+  if (L.pic === 'tap'){
+    const k = Math.min(1, t / 0.5), press = t < 0.25 ? 0 : t < 0.45 ? 1 : 0;
+    hand.setAttribute('transform', `translate(${sc.x + sc.rpx * 0.15},${sc.y + sc.rpx * 0.35 + 26}) scale(${press ? 0.9 : 1})`);
+    ring.setAttribute('cx', sc.x + sc.rpx * 0.15); ring.setAttribute('cy', sc.y + sc.rpx * 0.35); ring.setAttribute('r', t > 0.3 ? 10 + 40 * Math.min(1, (t - 0.3) / 0.6) : 0);
+    ring.setAttribute('opacity', t > 0.3 ? Math.max(0, 1 - (t - 0.3) / 0.6) : 0); arc.setAttribute('d', ''); head.setAttribute('d', '');
+  } else {
+    const R = sc.rpx * 1.32, a0 = 150 * DEG, a1 = 30 * DEG, pt = (a) => [sc.x + R * Math.cos(a), sc.y + R * Math.sin(a)];
+    const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    arc.setAttribute('d', `M${x0} ${y0} A${R} ${R} 0 0 0 ${x1} ${y1}`);
+    const dx = Math.sin(a1), dy = -Math.cos(a1), nx = Math.cos(a1), ny = Math.sin(a1);    // касательная по ходу (угол убывает) и нормаль
+    head.setAttribute('d', `M${x1 + dx * 8} ${y1 + dy * 8} L${x1 - dx * 10 + nx * 10} ${y1 - dy * 10 + ny * 10} L${x1 - dx * 10 - nx * 10} ${y1 - dy * 10 - ny * 10} Z`);
+    const k = ease.inOut(Math.min(1, t / 1.2)), a = a0 + (a1 - a0) * k, [hx, hy] = pt(a);
+    hand.setAttribute('transform', `translate(${hx},${hy + 26})`); ring.setAttribute('r', 0);
+  }
 }
 // Победа: камера чуть «толкается» вперёд, фон вспыхивает тёплым светом и гаснет.
 const _dir = new THREE.Vector3(), _bgTop = new THREE.Color(), _bgBot = new THREE.Color(), _warm = new THREE.Color('#fff1c4');
