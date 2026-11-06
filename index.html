@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Клапаны · Подковы</title>
+<title>Песок</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#9d86f0">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -46,7 +46,10 @@ button:active{transform:translateY(2px)}
 #dead{position:absolute;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 64px);z-index:4;display:none;background:rgba(255,255,255,.96);color:var(--ink2);border-radius:18px;
   padding:12px 14px;box-shadow:0 8px 24px rgba(40,10,110,.35);font-size:15px;line-height:1.3}
 #dead.show{display:flex;gap:10px;align-items:center}
-#dead b{color:var(--danger);display:block;font-size:13px;letter-spacing:.5px;text-transform:uppercase}
+#dead b{color:var(--danger);display:block;font-size:22px;font-weight:1000;letter-spacing:.3px}
+/* v0.6.1, П-2: тупик картинкой — застрявший цвет ✕ его банка, без букв и без текста причины (как «● ⚡ ▲» в «Замкни цепь») */
+#dead .pic{display:flex;align-items:center;flex:none;gap:0} #dead .pic svg{width:36px;height:40px;display:block} #dead .pic svg.x{width:24px;height:24px}
+#dead .txt{flex:1}
 #dead button{flex:none;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:900;padding:10px 12px;box-shadow:0 4px 0 #d79c00;cursor:pointer}
 #overlay{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(48,24,120,.45);padding:20px}
 #overlay.show{display:flex}
@@ -109,7 +112,7 @@ button:active{transform:translateY(2px)}
   <div id="game"><canvas id="gl"></canvas><div id="pic"><svg><path id="pic-arc" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="2 12" opacity=".9"/>
     <path id="pic-head" fill="#fff"/><circle id="pic-ring" fill="none" stroke="#fff" stroke-width="4"/>
     <g id="pic-hand"><path d="M-9 4 V-26 a9 9 0 0 1 18 0 V-6 l14 4 a8 8 0 0 1 6 9 l-4 24 H-6 l-13 -16 a6 6 0 0 1 9 -8 z" fill="#fff" stroke="#3a2a7a" stroke-width="3.5" stroke-linejoin="round"/></g></svg></div></div>
-  <div id="dead"><div><b>Тупик</b><span id="dead-text"></span></div><button id="dead-undo">Отменить ход</button></div>
+  <div id="dead"><div class="pic" id="dead-pic"></div><div class="txt"><b>Тупик</b></div><button id="dead-undo">Отменить</button></div>
   <footer>
     <button id="btn-undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Отмена</button>
     <button id="btn-reset"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>Заново</button>
@@ -127,7 +130,7 @@ button:active{transform:translateY(2px)}
 { // весь код в блоке: three.cjs объявляет сотни глобальных const, одноимённые объявления на верхнем уровне упали бы
 /* ЯДРО */
 // ---------------------------------------------------------------------------
-// «Клапаны» v0.6 «Проще» — ядро правил. Исполняется и игрой, и sim.mjs/test.mjs (core-load.mjs вырезает этот блок).
+// «Клапаны» (в игре — «Песок») v0.6.1 «Понятнее» (правки UX-аудита 06.11 поверх v0.6 «Проще») — ядро правил. Исполняется и игрой, и sim.mjs/test.mjs (core-load.mjs вырезает этот блок).
 //
 // Поле: прозрачные подковы (дуга 270°, разрыв 90°) с цветным песком и банки с воронками внизу. Песок в подкове — цепочка доз
 // вдоль трубки от конца E0 к концу E1, до 6 доз (6 ячеек по 45°). Цвета не смешиваются, порядок вдоль трубки не меняется.
@@ -206,6 +209,8 @@ function mulberry32(seed){
 //            lock — цвет банки, снимающей замок.
 //   Банка: id, цвет c, объём cap, x (стоит на полке). Куда что сыплется — из геометрии (dropFrom), руками дороги не задаются.
 //   pic — подсказка картинкой на первых уровнях: 'tap' — палец тапает, 'drag' — палец ведёт подкову против часовой.
+//   warn — урок «туда ему не дойти» (v0.6.1, П-7): зажатая подкова красным показывает, что ход ведёт в тупик. Только на 3-м:
+//          на остальных такое превью сняло бы ловушку.
 // Малая подкова под выпуском большой: x = x_A ± (OFF + OFF·s), OFF = sin 22,5° — её вход ровно под выпуском.
 // Порядок подков = номера ходов: ход m = 2·подкова + (0 — по часовой, 1 — против).
 const OFF = Math.sin(22.5 * Math.PI / 180), SMALL = 0.65, XS = +(OFF + OFF * SMALL).toFixed(4);
@@ -224,7 +229,7 @@ const LEVELS = [
   // 3. Первое «ага» — «С какого конца»: голубой конец висит над оранжевой воронкой, голубая банка — под малой подковой B справа.
   //    Тап (по часовой) ставит вправо ОРАНЖЕВЫЙ конец — он падает в B, а под B только голубая банка: тупик.
   //    Верно — против часовой: голубой в B, потом оранжевый влево, потом B отдаёт голубой.
-  { n: 3, name: 'С какого конца', hint: '',
+  { n: 3, name: 'С какого конца', hint: '', warn: 1,
     rings: [{ id: 'A', x: 0, y: 3.6, fill: 'bboo', o: 1 }, { id: 'B', x: XS, y: 1.55, s: SMALL, fill: '', o: 4 }],
     jars:  [{ id: 'jo', c: 'o', cap: 2, x: -0.62 }, { id: 'jb', c: 'b', cap: 2, x: XS }] },
 
@@ -521,6 +526,18 @@ function analyze(li){
   return { states: g.seen.size, dead: g.seen.size - g.good.size, wins: [...g.seen.values()].filter(v => v.win).length,
     par: sol ? sol.length : -1, sol, firstMoves: legalMoves(s).length, firstDead, solvable: g.good.has(stateKey(s)) };
 }
+// v0.6.1, П-8 (эксперимент, переключатель): «тап — до ближайшего пересыпания». Сколько щелчков подковы ri в сторону dir
+// до первого пересыпания или до тупика (его игрок должен увидеть). За полный оборот ничего — один щелчок (подставить конец).
+function macroSteps(s, ri, dir){
+  if (ri >= s.L.rings.length || ringLocked(s, ri)) return 1;
+  let t = s;
+  for (let n = 1; n <= CFG.POS; n++){
+    if (moveInfo(t, moveOf(ri, dir)).code === 'ok') return n;
+    t = applyMove(t, moveOf(ri, dir));
+    if (isDead(t)) return n;
+  }
+  return 1;
+}
 // Крутить одну подкову в одну сторону от старта: на каком щелчке тупик (0 — не наступает за полный оборот).
 function spinTrap(s, ri, dir){
   let t = s;
@@ -537,8 +554,25 @@ function routeTo(L, ri, c, seen){
 }
 const ringName = (L, ri) => 'подкову ' + L.rings[ri].id;
 function valveWord(c){ return c ? COLORS[c].nom : 'прозрачный'; }
-function deadReason(s){
+// Причина тупика: текст (журнал, сим) и что показать картинкой (v0.6.1, П-2): цвет color застрял в подкове ri — «доза ✕ банка».
+// kind: noRoute (цвет попал туда, откуда к своей банке дороги нет) | stuck (с концов подковы некуда) | middle | lock | other.
+function deadInfo(s){
   if (isWin(s) || !isDead(s)) return null;
+  const text = deadReason(s, true), L = s.L;
+  for (const [ji, J] of L.jars.entries()){
+    if (jarFull(s, ji)) continue;
+    for (let ri = 0; ri < L.rings.length; ri++) if (s.rings[ri].includes(J.c) && !routeTo(L, ri, J.c)) return { kind: 'noRoute', color: J.c, ri, ji, text };
+  }
+  for (const [ji, J] of L.jars.entries()){
+    if (jarFull(s, ji)) continue;
+    for (let ri = 0; ri < L.rings.length; ri++) if (s.rings[ri].includes(J.c)) return { kind: /^У /.test(text) ? 'stuck' : /зажат/.test(text) ? 'middle' : 'other', color: J.c, ri, ji, text };
+  }
+  const lk = L.rings.findIndex((r, ri) => ringLocked(s, ri));
+  if (lk >= 0) return { kind: 'lock', color: L.rings[lk].lock, ri: lk, ji: L.jars.findIndex(j => j.c === L.rings[lk].lock), text };
+  return { kind: 'other', color: null, ri: -1, ji: -1, text };
+}
+function deadReason(s, known){
+  if (!known && (isWin(s) || !isDead(s))) return null;
   const L = s.L;
   // 1) нужный цвет попал туда, откуда к своей банке дороги нет
   for (const [ji, J] of L.jars.entries()){
@@ -639,6 +673,12 @@ const VIEW = {                 // визуальные параметры (яд�
   WIN_CARD_MS: 1900,           // от последней крышки до карточки победы (успевает праздник: волна банок, конфетти)
   PICK_R: 1.55,                // попадание по подкове: до 1,55 радиуса от центра
   TAP_PX: 10,                  // порог тап/драг
+  HOLD_SHOW_MS: 180,           // v0.6.1, П-1: превью при удержании — не раньше, чтобы быстрый тап не мигал
+  HOLD_LOOK_MS: 550,           // отпустил раньше — тап (сколько бы ни держал), позже — только посмотрел, хода нет. Граница по e.timeStamp
+  QUEUE_MAX: 2,                // П-4: тапов в очереди, пока сыплется (третий быстрый тап — «вздрог» и тихий отказ)
+  DENY_ROUTE_MS: 520,          // П-5: пунктир «струя упирается в стекло» при отказе щелчка
+  GLASS_A: 0.07,               // плотность стекла подковы (uAlpha)
+  GLASS_A_SMALL: 0.2,          // П-6: стекло пустой малой подковы плотнее — читается как подкова, а не как прозрачная чашка
   DPR_MAX: 2,
   SHELF_H: 0.5,                // высота полки (модель сплющена по высоте)
   SHELF_SINK: 0.03,            // банки чуть утоплены в полку
@@ -655,6 +695,7 @@ const PERF = {};                          // этапы старта, мс от 
 function mark(name){ PERF[name] = Math.round(performance.now() - T0); log('event', 'perf.' + name, PERF[name] + 'ms'); }
 mark('script');
 
+const TAP_QS = (/[?&]tap=(macro|click)\b/.exec(location.search) || [])[1] || '';
 const SAVE_KEY = NAME + '.v4';          // v0.6 «Проще»: свой прогресс, не смешивается с v0.3 (.v1), v0.4 (.v2), v0.5 (.v3)
 function loadSave(){ try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch (e) { return {}; } }
 function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(G.save)); } catch (e) {} }
@@ -670,10 +711,15 @@ const G = {
   spinDemo: 0,          // замер: все подковы крутятся непрерывно (bench)
   fx: [],               // разовые эффекты по времени: крышки, замки
   dead: null,           // причина тупика (строка) или null
+  deadInfo: null,       // что показать картинкой: { color, ri, ji } (П-2)
+  queue: [],            // тапы, пришедшие во время пересыпания: [{ ri, dir }] (П-4)
+  queueAt: 0,           // не раньше этого времени — следующий тап из очереди
+  tapMacro: false,      // П-8: тап крутит до ближайшего пересыпания (?tap=macro или пункт меню)
   ending: 0,            // когда показать карточку победы
   timeScale: 1,
   paused: false,
 };
+G.tapMacro = TAP_QS ? TAP_QS === 'macro' : !!G.save.tapMacro;   // параметр в адресе главнее сейва; пункт меню переключает и сохраняет
 
 // --- звук: WebAudio-синтез без файлов, ленивый старт по первому жесту (§8) ---
 const Snd = {
@@ -722,6 +768,7 @@ const Snd = {
     this.noiseBurst(t, 0.05, 0.12, 'highpass', 3000); log('sound', 'ding'); },
   unlock(){ if (!this.ok()) return; const t = this.ac.currentTime; this.noiseBurst(t, 0.05, 0.3, 'bandpass', 1800, 3); this.osc('square', 300, 200, t, 0.05, 0.08);
     [660, 990, 1320].forEach((f, i) => this.osc('sine', f, f, t + 0.08 + i * 0.07, 0.35, 0.1)); log('sound', 'unlock'); },
+  nope(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('sine', 260, 190, t + 0.03, 0.09, 0.06); this.noiseBurst(t + 0.03, 0.05, 0.05, 'lowpass', 700); log('sound', 'nope'); },
   deny(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('square', 150, 130, t, 0.07, 0.07); this.osc('square', 150, 120, t + 0.1, 0.08, 0.07); log('sound', 'deny'); },
   dead(){ if (!this.ok()) return; const t = this.ac.currentTime; this.osc('sine', 420, 170, t, 0.45, 0.16); this.osc('triangle', 300, 120, t + 0.12, 0.4, 0.08); log('sound', 'dead'); },
   win(){ if (!this.ok()) return; const t = this.ac.currentTime; [523, 659, 784, 1047, 1319].forEach((f, i) => { this.osc('sine', f, f, t + i * 0.09, 0.9, 0.12, 0.003); this.osc('sine', f * 2.76, f * 2.76, t + i * 0.09, 0.4, 0.03); }); log('sound', 'win'); },
@@ -753,17 +800,17 @@ function goto(screen, payload){
   ov.classList.add('show');
   if (screen === 'menu'){
     const cur = Math.min(G.save.level, LEVELS.length - 1);
-    card.innerHTML = `<h1 class="logo">Клапаны</h1><p>Крути подковы — песок сыплется с нижнего конца прямо вниз.<br>Насыпь каждую банку её цветом.</p>
+    card.innerHTML = `<h1 class="logo">Песок</h1><p>Крути подковы — песок сыплется с нижнего конца прямо вниз.<br>Насыпь каждую банку её цветом.</p>
       <button class="primary big" data-act="play">Играть · уровень ${cur + 1}</button>
       <div class="levels">${LEVELS.map((L, i) => `<button class="lv${G.save.done[i] ? ' done' : ''}${i === cur ? ' cur' : ''}" data-act="lv" data-i="${i}">${i + 1}</button>`).join('')}</div>
-      <button data-act="help">Как играть</button>`;
+      <button data-act="help">Как играть</button> <button data-act="tapmode" id="btn-tapmode">${G.tapMacro ? 'Тап: до пересыпания' : 'Тап: один щелчок'}</button>`;
   }
   if (screen === 'help') card.innerHTML = `<h2>Как играть</h2><ul class="rules">
-      <li><b>Крути подкову пальцем</b> — в любую сторону. <b>Тап</b> — один щелчок по часовой.</li>
+      <li><b>Крути подкову пальцем</b> — в любую сторону. <b>Тап</b> — ${G.tapMacro ? 'крутит по часовой до ближайшего пересыпания' : 'один щелчок по часовой'}.</li>
       <li>Песок сыплется с <b>нижнего конца</b> прямо вниз: в воронку банки или в подкову ниже.</li>
       <li>Банка берёт <b>только свой цвет</b>. Чужой цвет над воронкой не сыплется.</li>
-      <li>Подкова ниже примет песок, если её конец стоит прямо под струёй.</li>
-      <li>Зажми подкову — пунктир покажет, куда она сыплет.</li></ul>
+      <li>Подкова ниже примет песок, если её конец стоит прямо под струёй — у такого конца <b>золотая кромка</b>.</li>
+      <li><b>Зажми подкову и подержи</b> — увидишь, куда ляжет песок. Отпустишь — ход не сделается.</li></ul>
       <button class="primary" data-act="menu">Понятно</button>`;
   if (screen === 'win'){
     const p = payload || {}, li = G.s ? G.s.li : 0;
@@ -784,6 +831,7 @@ $('card').addEventListener('click', (e) => {
   else if (act === 'retry') startLevel(G.s ? G.s.li : 0);
   else if (act === 'next'){ const li = G.s ? G.s.li + 1 : 0; if (li >= LEVELS.length) goto('menu'); else startLevel(li); }
   else if (act === 'help') goto('help');
+  else if (act === 'tapmode'){ G.tapMacro = !G.tapMacro; G.save.tapMacro = G.tapMacro; save(); log('event', 'tapmode', G.tapMacro ? 'macro' : 'click'); goto('menu'); }
   else goto('menu');
 });
 window.addEventListener('hashchange', () => routeHash());
@@ -801,17 +849,24 @@ function toast(msg, ms){ const t = $('toast'); t.textContent = msg; t.classList.
 function hud(){
   const L = G.s ? G.s.L : LEVELS[0];
   $('hud-level').textContent = (G.s ? G.s.li + 1 : 1) + ' · ' + L.name;
-  $('hud-moves').textContent = G.s ? 'щелчков ' + G.s.moves : '';
+  $('hud-moves').textContent = '';                 // v0.6.1, П-9: счётчика щелчков на экране нет (на карточке победы цифр тоже нет)
   $('hint').textContent = G.dead ? '' : (L.hint || '');
   $('btn-mute').classList.toggle('off', !!G.save.muted);
   $('btn-undo').disabled = !G.s || !G.s.hist.length;
 }
-function showDead(reason){
-  G.dead = reason;
-  $('dead-text').textContent = reason; $('dead').classList.add('show'); $('btn-undo').classList.add('pulse');
-  log('event', 'dead', reason); Snd.dead(); buzz([30, 60, 30]); hud();
+// v0.6.1, П-2: тупик картинкой. Плашка — «доза цвета ✕ банка того же цвета», слово «Тупик» и «Отменить». На поле застрявший цвет
+// мигает в своей подкове, кромки её концов тускнеют, над банкой этого цвета — красный крестик. Текст причины — только в журнал.
+const INK = '#3a2a7a';
+const doseSvg = (c) => `<svg viewBox="0 0 40 40"><path d="M8 28 Q20 11 32 28" fill="none" stroke="${INK}" stroke-width="15" stroke-linecap="round"/><path d="M8 28 Q20 11 32 28" fill="none" stroke="${COLORS[c].hex}" stroke-width="9.5" stroke-linecap="round"/></svg>`;
+const jarSvg = (c) => `<svg viewBox="0 0 40 40"><path d="M6 7h28l-9 10h-10z" fill="${COLORS[c].hex}" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round"/><rect x="10" y="17" width="20" height="20" rx="5" fill="#fff" stroke="${INK}" stroke-width="2.6"/><circle cx="20" cy="27" r="4.6" fill="${COLORS[c].hex}"/></svg>`;
+const X_SVG = `<svg class="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#ff3b5c" stroke-width="4.5" stroke-linecap="round"/></svg>`;
+function showDead(di){
+  G.dead = di.text; G.deadInfo = di; G.queue.length = 0;
+  $('dead-pic').innerHTML = di.color ? doseSvg(di.color) + X_SVG + jarSvg(di.color) : '';
+  $('dead').classList.add('show'); $('btn-undo').classList.add('pulse');
+  log('event', 'dead', di.text); Snd.dead(); buzz([30, 60, 30]); hud();
 }
-function hideDead(){ G.dead = null; $('dead').classList.remove('show'); $('btn-undo').classList.remove('pulse'); }
+function hideDead(){ G.dead = null; G.deadInfo = null; $('dead').classList.remove('show'); $('btn-undo').classList.remove('pulse'); }
 
 // Граф уровня (до ~35 тыс. состояний) считается после первого кадра: не держит ни старт, ни показ уровня. par и тупики — оттуда.
 function scheduleAnalyze(){
@@ -820,10 +875,10 @@ function scheduleAnalyze(){
   setTimeout(() => { if (!G.s || G.s.L !== L) return; const t0 = performance.now();
     graphAsync(L, (g) => { if (!G.s || G.s.L !== L) return; const d = g.dist.get(stateKey(createState(G.s.li))); G.par = d === undefined ? -1 : d;
       log('event', 'level.start', 'level=' + (G.s.li + 1) + ' par=' + G.par + ' states=' + g.seen.size + ' dead=' + (g.seen.size - g.good.size) + ' graph=' + Math.round(performance.now() - t0) + 'ms');
-      if (!G.pour && !G.ending){ const reason = deadReason(G.s); if (reason) showDead(reason); } }); }, 80);
+      if (!G.pour && !G.ending){ const di = deadInfo(G.s); if (di) showDead(di); } }); }, 80);
 }
 function startLevel(li){
-  G.s = createState(li); G.view = cloneState(G.s); G.pour = null; G.press = null; G.fx = []; G.ending = 0; G.hint = null; G.punch = 0; G.flashBg = 0; if (R3) R3.parts = [];
+  G.s = createState(li); G.view = cloneState(G.s); G.pour = null; G.press = null; G.fx = []; G.ending = 0; G.hint = null; G.punch = 0; G.flashBg = 0; G.queue = []; G.deny = null; if (R3) R3.parts = [];
   hideDead();
   // граф уровня (до ~35 тыс. состояний) считается после первого кадра, чтобы не держать показ уровня; par и тупики — оттуда
   G.par = -1; scheduleAnalyze();
@@ -994,6 +1049,12 @@ function radialTexture(kind){          // мягкие тени, крестик 
     const g = x.createRadialGradient(64, 64, 0, 64, 64, 40); g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
   if (kind === 'plug'){ x.fillStyle = '#4b3c8c'; x.beginPath(); x.arc(64, 64, 58, 0, Math.PI * 2); x.fill(); x.fillStyle = '#efeaff'; x.beginPath(); x.arc(64, 64, 46, 0, Math.PI * 2); x.fill();
     x.fillStyle = '#4b3c8c'; x.beginPath(); x.roundRect(30, 55, 68, 18, 9); x.fill(); }
+  if (kind === 'arrow'){   // изогнутая стрелка по часовой (против — зеркалом): подсказка картинкой, куда крутить (как в «Замкни цепь»)
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    for (const [w, c] of [[16, 'rgba(40,24,90,0.55)'], [9, '#fff3a0']]){ x.strokeStyle = c; x.fillStyle = c; x.lineWidth = w;
+      x.beginPath(); x.arc(64, 64, 44, -Math.PI * 0.95, -Math.PI * 0.15); x.stroke();
+      const ax = 64 + 44 * Math.cos(-Math.PI * 0.15), ay = 64 + 44 * Math.sin(-Math.PI * 0.15);
+      x.beginPath(); x.moveTo(ax + 16, ay - 6); x.lineTo(ax - 2, ay + 18); x.lineTo(ax - 14, ay - 12); x.closePath(); x.fill(); x.stroke(); } }
   if (kind === 'halo'){ const g = x.createRadialGradient(64, 64, 30, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return (MISC_TEX[kind] = t);
 }
@@ -1042,7 +1103,7 @@ function initRenderer(){
     funnel: new THREE.LatheGeometry(funnelProfile(), 36),
     jar: {}, jarSand: {},
   };
-  const glassUniforms = (back) => ({ uTint: { value: lin(VIEW.GLASS_TINT) }, uLight: { value: LIGHT_DIR }, uAlpha: { value: 0.07 }, uBack: { value: back ? 1 : 0 } });
+  const glassUniforms = (back) => ({ uTint: { value: lin(VIEW.GLASS_TINT) }, uLight: { value: LIGHT_DIR }, uAlpha: { value: VIEW.GLASS_A }, uBack: { value: back ? 1 : 0 } });
   const mat = {
     glassFront: new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_GLASS + COLD, uniforms: glassUniforms(false), transparent: true, depthWrite: false, side: THREE.FrontSide }),
     glassBack: new THREE.ShaderMaterial({ vertexShader: SH_VERT, fragmentShader: SH_GLASS + COLD, uniforms: glassUniforms(true), transparent: true, depthWrite: false, side: THREE.BackSide }),
@@ -1053,6 +1114,7 @@ function initRenderer(){
     ringShadow: new THREE.MeshBasicMaterial({ map: radialTexture('ring'), transparent: true, depthWrite: false, opacity: 0.35 }),   // v0.6: тень слабее — тени малых подков не спорят с песком
     cross: new THREE.MeshBasicMaterial({ map: radialTexture('cross'), transparent: true, depthTest: false }),
     halo: new THREE.MeshBasicMaterial({ map: radialTexture('halo'), transparent: true, depthWrite: false, color: 0xfff3a0 }),
+    hintArrow: new THREE.MeshBasicMaterial({ map: radialTexture('arrow'), transparent: true, depthWrite: false, depthTest: false }),
     line: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false }),
     ghost: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false }),
     dot: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }),
@@ -1201,22 +1263,25 @@ function disposeLevel(){
   R3.level = null;
 }
 // Подкова в локальных координатах (положение o = 0): стекло, две заглушки на концах, 6 доз песка (видны по числу доз в цепочке).
-function makeHorseshoe(ri){
+// small — малая подкова: своё стекло (клон того же шейдера, программа общая), плотнее, пока подкова пустая (v0.6.1, П-6).
+function makeHorseshoe(ri, small){
   const rot = new THREE.Group(), own = (m) => { m.userData.ownMat = true; return m; };
-  const back = new THREE.Mesh(R3.geo.glass, R3.mat.glassBack); back.renderOrder = 2; rot.add(back);
-  const front = new THREE.Mesh(R3.geo.glass, R3.mat.glassFront); front.renderOrder = 3; rot.add(front);
+  const gB = small ? R3.mat.glassBack.clone() : R3.mat.glassBack, gF = small ? R3.mat.glassFront.clone() : R3.mat.glassFront;
+  const back = new THREE.Mesh(R3.geo.glass, gB); back.renderOrder = 2; rot.add(back);
+  const front = new THREE.Mesh(R3.geo.glass, gF); front.renderOrder = 3; rot.add(front);
+  if (small){ back.userData.ownMat = true; front.userData.ownMat = true; }
   const ends = [];
   for (const e of [0, 1]){                          // заглушки: полусфера наружу по касательной; устье — кольцо-кромка на конце
     const deg = endDeg(0, e), p = rimAt({ x: 0, y: 0 }, deg), dir = e ? 1 : -1;      // E0 смотрит против часовой, E1 — по часовой (наружу из дуги)
     const tan = new THREE.Vector3(-Math.cos(deg * DEG), Math.sin(deg * DEG), 0).multiplyScalar(-dir), caps = [];
-    for (const [m, ro] of [[R3.mat.glassBack, 2], [R3.mat.glassFront, 3]]){ const c = new THREE.Mesh(R3.geo.cap, m); c.position.set(p.x, p.y, 0); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan); c.renderOrder = ro; rot.add(c); caps.push(c); }
+    for (const [m, ro] of [[gB, 2], [gF, 3]]){ const c = new THREE.Mesh(R3.geo.cap, m); c.position.set(p.x, p.y, 0); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan); c.renderOrder = ro; rot.add(c); caps.push(c); }
     const lip = own(new THREE.Mesh(R3.geo.lip, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.15, metalness: 0.1, roughness: 0.35 })));
     lip.position.set(p.x, p.y, 0); lip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan); lip.renderOrder = 3; rot.add(lip);
     ends.push({ caps, lip, k: 0, flash: 0 });
   }
   const doses = [];
   for (let i = 0; i < CFG.RING_CAP + 2; i++){ const d = own(new THREE.Mesh(R3.geo.dose, sandMaterial('b'))); d.renderOrder = 1; d.visible = false; rot.add(d); doses.push(d); }
-  return { rot, doses, ends };
+  return { rot, doses, ends, glass: small ? [gB, gF] : null };
 }
 function buildLevel(L, noWarm){
   if (!R3) return;
@@ -1227,7 +1292,7 @@ function buildLevel(L, noWarm){
     const g = new THREE.Group(), sc = r.s || 1; g.position.set(r.x, r.y, 0); g.scale.setScalar(sc);      // малая подкова — та же модель в масштабе
     const sh = new THREE.Mesh(R3.geo.plane, R3.mat.ringShadow); sh.scale.setScalar(3.1 * sc); sh.position.set(r.x + 0.22 * sc, r.y - 0.3 * sc, -5.9); sh.renderOrder = -5; root.add(sh);
     // v0.6: точек-щелчков по ободу нет — меньше деталей на поле (комментарий Веры 06.11)
-    const hs = makeHorseshoe(ri); g.add(hs.rot);
+    const hs = makeHorseshoe(ri, (r.s || 1) < 1); g.add(hs.rot);
     // устье: мягкое свечение у выпуска, где сейчас стоит конец (неподвижно, по точкам BL/BR)
     const mouths = {};
     for (const at of ['BL', 'BR']){
@@ -1243,7 +1308,8 @@ function buildLevel(L, noWarm){
     }
     root.add(g);
     const cont = G.s ? G.s.ang[ri] : r.o, n = (G.view ? G.view.rings[ri] : [...r.fill]).length, p0 = restOffset(cont, n);
-    lv.rings.push({ id: r.id, g, rot: hs.rot, doses: hs.doses, ends: hs.ends, mouths, pop: 0, lock, tag, cont, vis: cont, anim: null, shake: 0, unlocked: false, p: p0, pT: p0, slideAt: 0 });
+    lv.rings.push({ id: r.id, g, rot: hs.rot, doses: hs.doses, ends: hs.ends, mouths, pop: 0, lock, tag, cont, vis: cont, anim: null, shake: 0, unlocked: false, p: p0, pT: p0, slideAt: 0,
+      glass: hs.glass, glassA: VIEW.GLASS_A_SMALL, jerk: null });
   });
   // банки на полке, с воронкой цвета банки
   const xs = L.jars.map(j => j.x), minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -1282,7 +1348,7 @@ function buildLevel(L, noWarm){
     guide.userData.ownGeo = false; guide.scale.set(VIEW.GUIDE_W, len, 1); guide.position.set(P[0].x, (P[0].y + P[1].y) / 2, 0.25); guide.renderOrder = 4; guide.visible = false; root.add(guide);
     const eg = own(new THREE.Mesh(R3.geo.plane, new THREE.MeshBasicMaterial({ map: radialTexture('halo'), color: col.clone(), transparent: true, depthWrite: false })));
     const endS = toJar ? 1.1 : 0.7; eg.scale.setScalar(endS); eg.position.set(P[1].x, P[1].y + (toJar ? 0.02 : 0), 0.35); eg.renderOrder = 4; eg.visible = false; root.add(eg);
-    lv.valves.push({ id: v.id, v, guide, endGlow: eg, endS, P, len, glow: 0 });
+    lv.valves.push({ id: v.id, v, guide, endGlow: eg, endS, P, len, glow: 0, col: col.clone() });
   });
   // струя песка: столбик цвета песка от устья вниз, голова и хвост бегут с ускорением (как песчинки)
   const stream = new THREE.Mesh(R3.geo.stream, R3.mat.stream); stream.visible = false; stream.renderOrder = 3; root.add(stream); lv.stream = stream;
@@ -1291,7 +1357,11 @@ function buildLevel(L, noWarm){
   const ghost = new THREE.Mesh(R3.geo.ghost, R3.mat.ghost); ghost.visible = false; ghost.renderOrder = 5; root.add(ghost);
   const halo = new THREE.Mesh(R3.geo.plane, R3.mat.halo); halo.visible = false; halo.renderOrder = 4; root.add(halo);
   const cross = new THREE.Mesh(R3.geo.plane, R3.mat.cross); cross.scale.setScalar(0.34); cross.visible = false; cross.renderOrder = 7; root.add(cross);
-  Object.assign(lv, { ghost, halo, cross });
+  // v0.6.1: стрелка подсказки (П-3), крестик над банкой при тупике (П-2) и в превью урока 3-го (П-7)
+  const hintArrow = new THREE.Mesh(R3.geo.plane, R3.mat.hintArrow); hintArrow.visible = false; hintArrow.renderOrder = 11; root.add(hintArrow);
+  const deadCross = new THREE.Mesh(R3.geo.plane, R3.mat.cross); deadCross.visible = false; deadCross.renderOrder = 8; root.add(deadCross);
+  const warnCross = new THREE.Mesh(R3.geo.plane, R3.mat.cross); warnCross.visible = false; warnCross.renderOrder = 8; root.add(warnCross);
+  Object.assign(lv, { ghost, halo, cross, hintArrow, deadCross, warnCross });
   // кадр по полю: подковы, банки
   let x0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const r of L.rings){ const e = ringR(r) + tubeR(r) + 0.15; x0 = Math.min(x0, r.x - e); x1 = Math.max(x1, r.x + e); y1 = Math.max(y1, r.y + e); }
@@ -1315,7 +1385,7 @@ function frameCamera(){
 // Прогрев: один раз нарисовать то, что появится позже (дозы, призрак, крестик, ореол, песчинки), потом скрыть.
 function warmUp(){
   const lv = R3.level; if (!lv) return;
-  const show = [lv.ghost, lv.halo, lv.cross, lv.stream, ...lv.rings.flatMap(R => R.doses.concat(Object.values(R.mouths).map(M => M.m))), ...lv.jars.map(J => J.lid), ...lv.jars.map(J => J.wave), ...lv.valves.flatMap(V => [V.guide, V.endGlow])];
+  const show = [lv.ghost, lv.halo, lv.cross, lv.hintArrow, lv.deadCross, lv.warnCross, lv.stream, ...lv.rings.flatMap(R => R.doses.concat(Object.values(R.mouths).map(M => M.m))), ...lv.jars.map(J => J.lid), ...lv.jars.map(J => J.wave), ...lv.valves.flatMap(V => [V.guide, V.endGlow])];
   const was = show.map(o => o.visible);
   show.forEach(o => { o.visible = true; });
   R3.grains.count = 1; R3.drops.count = 1; R3.conf.count = 1; R3.stars.count = 1;
@@ -1368,7 +1438,12 @@ function syncView(tNow){
         if (P.info.srcEnd === 0){ const pos = R.p + j - t; put(c, pos, 0, Math.max(0, Math.min(1, 1 + pos))); }
         else { const pos = R.p + j + t; put(c, pos, Math.max(0, Math.min(1, pos + 1 - cap)), 1); }
       });
-    } else arr.forEach((c, j) => put(c, R.p + j, 0, 1));
+    } else {
+      let jo = 0;                                        // П-5: отказ — песок у устья «дёргается» к выпуску и обратно
+      if (R.jerk){ const q = (tNow - R.jerk.t0) / (260 / G.timeScale); if (q >= 1) R.jerk = null; else if (q > 0) jo = (R.jerk.e ? 1 : -1) * 0.2 * Math.sin(q * Math.PI); }
+      arr.forEach((c, j) => put(c, R.p + j + jo, 0, 1));
+    }
+    if (R.glass){ const a = arr.length || (P && P.info.ti === ri) ? VIEW.GLASS_A : VIEW.GLASS_A_SMALL; R.glassA += (a - R.glassA) * Math.min(1, dt * 8); R.glass.forEach(m => { m.uniforms.uAlpha.value = R.glassA; }); }
     if (P && P.info.ti === ri){                    // приёмник: доза «наползает» со стороны входа
       for (let q = 0; q < P.info.amount; q++){ const gq = Math.max(0, Math.min(1, t - q - 0.35));
         if (P.info.toEnd === 0) put(P.info.color, R.pT - 1 - q, 1 - gq, 1); else put(P.info.color, R.pT + arr.length + q, 0, gq); }
@@ -1387,17 +1462,23 @@ function syncView(tNow){
   applyPreview(time);
   applyRoutes(tNow, time);
 }
-// Дороги: палец на подкове (или подсказка) — её дороги видны пунктиром цвета приёмника, у точки падения — ореол.
-// Дорога следующего щелчка — ярче. В покое дорог не видно: на поле только подковы, песок и банки.
+// Дороги (v0.6.1, П-7): палец на подкове (или подсказка) — видна одна дорога, этого хода: пунктир цветом песка, который туда уйдёт
+// (не пройдёт — цветом приёмника и крестик), у точки падения — ореол. Урок 3-го: ход в тупик — дорога красная.
+// Отказ щелчка (П-5): пунктир струи на DENY_ROUTE_MS упирается в стекло подковы ниже. В покое дорог не видно.
 let lastRoutes = 0;
+const _red = new THREE.Color('#ff3b5c'), SAND_C = {};
+const sandC = (c) => SAND_C[c] || (SAND_C[c] = lin(COLORS[c].hex));
 function applyRoutes(tNow, time){
   const lv = R3.level, L = G.view.L, dt = Math.min(0.1, Math.max(0, (tNow - (lastRoutes || tNow)) / 1000)); lastRoutes = tNow;
   const fid = lv.focus >= 0 ? L.rings[lv.focus].id : null, k = Math.min(1, dt * 14);
+  if (G.deny && tNow >= G.deny.until) G.deny = null;
   for (const V of lv.valves){
-    const mine = fid !== null && V.v.from === fid, tgt = mine && V.id === lv.pvValve;
-    V.glow += ((mine ? (tgt ? 1 : 0.55) : 0) - V.glow) * k;
+    const tgt = fid !== null && V.v.from === fid && V.id === lv.pvValve, deny = !!(G.deny && G.deny.valve === V.id);
+    V.glow += ((tgt || deny ? 1 : 0) - V.glow) * (deny ? Math.min(1, dt * 24) : k);
     const on = V.glow > 0.02; V.guide.visible = on; V.endGlow.visible = on;
     if (on){ const u = V.guide.material.uniforms; u.uA.value = Math.min(1, V.glow * 1.1); u.uTime.value = time;
+      const col = deny ? sandC(G.deny.color) : tgt && lv.pvWarn ? _red : tgt && lv.pvColor ? sandC(lv.pvColor) : V.col;
+      u.uCol.value.copy(col); V.endGlow.material.color.copy(col);
       V.endGlow.material.opacity = Math.min(1, V.glow); V.endGlow.scale.setScalar(V.endS * (1 + 0.08 * Math.sin(time * 7))); }
   }
   applyMouths(tNow, time, k);
@@ -1405,22 +1486,27 @@ function applyRoutes(tNow, time){
 // Устье: конец, который стоит на выпуске (BL/BR), — «отсюда сыплется». Кромка этого конца — цвета банки под ним (над подковой — золото)
 // и чуть крупнее, стеклянная заглушка снята (конец открыт), за устьем — мягкое свечение того же цвета.
 // Второй конец — тонкая белая кромка: видно, что это тоже отверстие. При пересыпании кромка вспыхивает.
+// v0.6.1, П-6: конец, стоящий под чужим выпуском (вход TL/TR, куда падает струя сверху), — золотая кромка и открытый конец, как у устья
+// над подковой: золото сверху и золото снизу = песок перейдёт. П-2: у подковы, где застрял песок (тупик), кромки серые и тусклые.
 const _lipC = new THREE.Color(), _white = new THREE.Color(1, 1, 1), _grey = new THREE.Color('#8f86b8'), _gold = new THREE.Color('#ffc928');
 const mouthColor = (v) => { const J = jarById(G.view.L, v.to); return J ? lin(COLORS[J.c].hex) : _gold; };   // над банкой — её цвет, над подковой — золото
 function applyMouths(tNow, time, k){
   const lv = R3.level, L = G.view.L;
+  const di = G.pour ? null : G.deadInfo;
   lv.rings.forEach((R, ri) => {
     const o = posNorm(Math.round(R.vis)), E = END_AT[o], seated = OUTLET[E.spot] ? E.e : -1, v = seated >= 0 ? valveAt(L, ri, E.spot) : null;
-    const has = (G.view.rings[ri] || []).length > 0, settled = Math.abs(R.vis - Math.round(R.vis)) < 0.18;
+    const inEnd = seated < 0 && inletValve(L, ri, E.spot) ? E.e : -1;
+    const has = (G.view.rings[ri] || []).length > 0, settled = Math.abs(R.vis - Math.round(R.vis)) < 0.18, dim = !!(di && di.ri === ri);
     R.ends.forEach((N, e) => {
-      const low = e === seated && settled;
-      N.k += ((low ? 1 : 0) - N.k) * k;
+      const low = e === seated && settled, inlet = e === inEnd && settled, lit = (low && !!v) || inlet;
+      N.k += (((low || inlet) && !dim ? 1 : 0) - N.k) * k;
       const fl = N.flash ? Math.max(0, 1 - (tNow - N.flash) / (380 / G.timeScale)) : 0; if (!fl) N.flash = 0;
-      _lipC.copy(low ? (v ? mouthColor(v) : _grey) : _white);
+      if (dim){ N.lip.material.color.copy(_grey); N.lip.material.emissive.copy(_grey); N.lip.material.emissiveIntensity = 0.02; N.lip.scale.set(1, 1, 1); N.caps.forEach(c => { c.visible = true; }); return; }
+      _lipC.copy(low ? (v ? mouthColor(v) : _grey) : inlet ? _gold : _white);
       N.lip.material.color.lerpColors(_white, _lipC, N.k); N.lip.material.emissive.copy(N.lip.material.color);
-      N.lip.material.emissiveIntensity = 0.12 + (v ? N.k * (0.4 + 0.15 * Math.sin(time * 3.2)) : 0) + 0.9 * fl;
-      N.lip.scale.set(1 + 0.12 * N.k * (v ? 1 : 0.3) + 0.35 * fl, 1 + 0.12 * N.k * (v ? 1 : 0.3) + 0.35 * fl, 1 + 0.9 * N.k * (v ? 1 : 0) + fl);
-      const open = low && !!v; N.caps.forEach(c => { c.visible = !open; });
+      N.lip.material.emissiveIntensity = 0.12 + (lit ? N.k * (0.4 + 0.15 * Math.sin(time * 3.2)) : 0) + 0.9 * fl;
+      N.lip.scale.set(1 + 0.12 * N.k * (lit ? 1 : 0.3) + 0.35 * fl, 1 + 0.12 * N.k * (lit ? 1 : 0.3) + 0.35 * fl, 1 + 0.9 * N.k * (lit ? 1 : 0) + fl);
+      N.caps.forEach(c => { c.visible = !lit; });
     });
     for (const at of ['BL', 'BR']){
       const M = R.mouths[at], on = M.v && E.spot === at && settled && has;
@@ -1429,24 +1515,52 @@ function applyMouths(tNow, time, k){
     }
   });
 }
-// Превью: пока палец на подкове — контур подковы в следующем щелчке по направлению драга (у тапа — по часовой) и что пересыплется:
-// уходящие дозы мигают, ореол над устьем, «призрак» прихода в банке. Не пройдёт — крестик под устьем. Подсказка показывает то же.
+// Превью (v0.6.1, П-7 — исход, а не дороги): пока палец на подкове дольше HOLD_SHOW_MS (или идёт драг) — контур подковы в следующем
+// положении (у тапа — по часовой, в макро-режиме — до пересыпания) и куда ляжет песок: уходящие дозы мигают, в банке — «призрак» прихода,
+// в подкове-приёмнике — призрачные дозы того цвета у входа. Светится одна дорога — этого хода, цветом песка. Не пройдёт — крестик под устьем.
+// Урок 3-го уровня (L.warn): ход ведёт в тупик — дорога красная, над банкой застрявшего цвета красный крестик. На других уровнях
+// тупик в превью не виден, иначе превью сняло бы ловушку. Подсказка показывает то же для своего хода и изогнутую стрелку, куда крутить.
 function previewMove(){
   const P = G.press;
-  if (P && !G.pour) return { m: moveOf(P.ri, P.dir || 1), hint: false };
-  if (G.hint && now() < G.hint.until && !G.pour && !P) return { m: G.hint.m, hint: true };
+  if (P && !G.pour && (P.drag || now() - P.at >= VIEW.HOLD_SHOW_MS)) return { m: moveOf(P.ri, P.dir || 1), hint: false, macro: G.tapMacro && !P.drag && !P.clicks && (P.dir || 1) > 0 };
+  if (G.hint && now() < G.hint.until && !G.pour && !P) return { m: G.hint.m, hint: true, macro: false };
   return null;
+}
+let pvCache = { key: '' };
+function previewInfo(pm){
+  const key = stateKey(G.s) + ':' + pm.m + ':' + (pm.macro ? 1 : 0) + ':' + (pm.hint ? 1 : 0);
+  if (pvCache.key === key) return pvCache;
+  const ri = pm.m >> 1, dir = (pm.m & 1) ? -1 : 1, k = pm.macro ? macroSteps(G.s, ri, dir) : 1;
+  let t = G.s; for (let i = 1; i < k; i++) t = applyMove(t, pm.m);
+  const info = moveInfo(t, pm.m), warn = !!G.s.L.warn && !pm.hint && info.code !== 'locked' && isDead(applyMove(t, pm.m));
+  pvCache = { key, k, info, warn, di: warn ? deadInfo(applyMove(t, pm.m)) : null };
+  return pvCache;
+}
+function crossOverJar(mesh, ji, time){
+  const J = G.view.L.jars[ji]; if (!J) return;
+  mesh.visible = true; mesh.position.set(J.x, funnelTop(J) + 0.16, 0.8); mesh.scale.setScalar(0.52 * (1 + 0.08 * Math.sin(time * 9)));
+}
+// Тупик на поле (П-2): застрявший цвет мигает в своей подкове, над банкой этого цвета — красный крестик (кромки тускнеют в applyMouths).
+function applyDeadFx(time){
+  const lv = R3.level, di = G.deadInfo; lv.deadCross.visible = false;
+  if (!di || G.pour) return;
+  if (di.ri >= 0){ const R = lv.rings[di.ri]; (G.view.rings[di.ri] || []).forEach((c, j) => { if (c === di.color && R.doses[j]) R.doses[j].material.uniforms.uBlink.value = 1; }); }
+  if (di.ji >= 0) crossOverJar(lv.deadCross, di.ji, time);
 }
 function applyPreview(time){
   const lv = R3.level, L = G.view.L;
-  lv.ghost.visible = false; lv.halo.visible = false; lv.cross.visible = false; lv.pvValve = null; lv.focus = G.press ? G.press.ri : -1;
+  lv.ghost.visible = false; lv.halo.visible = false; lv.cross.visible = false; lv.hintArrow.visible = false; lv.warnCross.visible = false;
+  lv.pvValve = null; lv.pvColor = null; lv.pvWarn = false; lv.focus = -1;
+  applyDeadFx(time);
   const pm = previewMove(); if (!pm) return;
-  const info = moveInfo(G.s, pm.m), ri = pm.m >> 1, r = L.rings[ri];
-  if (pm.hint) lv.focus = ri;
+  const pv = previewInfo(pm), info = pv.info, ri = pm.m >> 1, dir = (pm.m & 1) ? -1 : 1, r = L.rings[ri];
+  lv.focus = ri;
   if (info.code === 'locked') return;
-  lv.pvValve = info.valve || null;
-  const pulse = 1 + 0.1 * Math.sin(time * 9);
-  lv.ghost.visible = true; lv.ghost.position.set(r.x, r.y, 0.01); lv.ghost.scale.setScalar(r.s || 1); lv.ghost.rotation.z = -(lv.rings[ri].cont + info.dir) * STEP;
+  lv.pvValve = info.valve || null; lv.pvColor = info.code === 'ok' ? info.color : null; lv.pvWarn = pv.warn;
+  const pulse = 1 + 0.1 * Math.sin(time * 9), sc = r.s || 1;
+  lv.ghost.visible = true; lv.ghost.position.set(r.x, r.y, 0.01); lv.ghost.scale.setScalar(sc); lv.ghost.rotation.z = -(lv.rings[ri].cont + dir * pv.k) * STEP;
+  if (pm.hint){ lv.hintArrow.visible = true; lv.hintArrow.position.set(r.x, r.y + 0.1 * sc, 0.7); lv.hintArrow.scale.set(1.75 * sc * dir * pulse, 1.75 * sc * pulse, 1);
+    lv.hintArrow.rotation.z = -dir * ((time * 1.6) % 1) * 0.35; }
   const valve = info.valve ? L.valves.find(v => v.id === info.valve) : null;
   if (!valve) return;
   const p0 = spotPos(ringById(L, valve.from), valve.at);
@@ -1456,27 +1570,40 @@ function applyPreview(time){
     for (let q = 0; q < info.amount; q++){ const j = info.srcEnd ? arr.length - 1 - q : q; if (R.doses[j]) R.doses[j].material.uniforms.uBlink.value = 1; }
     if (info.ji !== undefined){ const J = lv.jars[info.ji], u = J.sand.material.uniforms; u.uGhost.value = 1; u.uGhostC.value.set(COLORS[info.color].hex);
       u.uGhostTop.value = CFG.JAR_FLOOR + 0.04 + (J.V + info.amount) * CFG.JAR_DOSE_H - VIEW.HEAP_H * 0.5; if (u.uTop.value < -50) u.uTop.value = CFG.JAR_FLOOR + 0.02; }
-    else { const T = lv.rings[info.ti], q = spotPos(ringById(L, valve.to), valve.in); lv.cross.visible = false; lv.halo.visible = true; lv.halo.position.set(q.x, q.y, 0.3); }
+    else {                                                                // в подкову ниже: призрачные дозы того цвета у её входа
+      const T = lv.rings[info.ti], spare = T.doses.filter(d => !d.visible);
+      for (let q = 0; q < info.amount && q < spare.length; q++){ placeDose(spare[q], info.color, info.toEnd === 0 ? q : CFG.RING_CAP - 1 - q, 0, 1, time); spare[q].material.uniforms.uGhost.value = 1; }
+      const q = spotPos(ringById(L, valve.to), valve.in); lv.halo.position.set(q.x, q.y, 0.3);
+    }
+    if (pv.warn && pv.di && pv.di.ji >= 0) crossOverJar(lv.warnCross, pv.di.ji, time);
   } else if (['wrongValve', 'wrongJar', 'jarFull', 'closedBelow', 'ringFull'].includes(info.code)){
     lv.cross.visible = true; lv.cross.position.set(p0.x, p0.y - 0.2, 0.6); lv.cross.scale.setScalar(0.34 * pulse);
   }
 }
 
 // --- ход: щелчок подковы → ядро сразу, анимация догоняет ---
-// how: 'tap' (с отскоком), 'drag' (подкова уже за пальцем), 'key'/'auto' (как тап)
-function turnRing(ri, dir, how){
+// how: 'tap' (с отскоком), 'drag' (подкова уже за пальцем), 'key'/'auto'/'queue' (как тап).
+// steps — щелчков подряд (макро-тап, П-8): промежуточные без пересыпания (так их считает macroSteps), поворот одной анимацией,
+// пересыпание — после него. Все щелчки хода — одна группа: «Отмена» снимает её целиком.
+let GRP = 0;
+function turnRing(ri, dir, how, steps){
   if (!G.s || G.screen !== 'game' || G.pour || G.ending) return false;
-  const lv = R3 && R3.level, m = moveOf(ri, dir), info = moveInfo(G.s, m);
-  log('input', 'turn', 'ring=' + (G.s.L.rings[ri] || {}).id + ' dir=' + dir + ' how=' + how + ' k=' + info.k + ' code=' + info.code);
+  const lv = R3 && R3.level, m = moveOf(ri, dir), k = Math.max(1, steps || 1);
+  let info = moveInfo(G.s, m);
+  if (k === 1 || info.code === 'locked' || info.code === 'none') log('input', 'turn', 'ring=' + (G.s.L.rings[ri] || {}).id + ' dir=' + dir + ' how=' + how + ' k=' + info.k + ' code=' + info.code);
   if (info.code === 'none') return false;
   if (info.code === 'locked'){ Snd.deny(); buzz(15); toast(denyText(info)); if (lv) lv.rings[ri].shake = now(); return false; }
   hideDead();
-  const before = G.s; G.s = applyMove(G.s, m); G.hint = null;
-  if (lv){ const R = lv.rings[ri]; const from = R.vis; R.cont += dir; R.pop = now(); if (how !== 'drag') R.anim = { from, to: R.cont, t0: now(), ms: CFG.CLICK_MS, back: true }; }
-  Snd.ratchet(dir); buzz(6);
+  const grp = ++GRP, mark = () => { const h = G.s.hist[G.s.hist.length - 1]; h.mv = m; h.grp = grp; };
+  for (let i = 1; i < k; i++){ G.s = applyMove(G.s, m); mark(); }
+  if (k > 1){ info = moveInfo(G.s, m); log('input', 'turn', 'ring=' + G.s.L.rings[ri].id + ' dir=' + dir + ' how=' + how + ' steps=' + k + ' k=' + info.k + ' code=' + info.code); }
+  const before = G.s; G.s = applyMove(G.s, m); mark(); G.hint = null;
+  const spin = CFG.CLICK_MS + 70 * (k - 1);
+  if (lv){ const R = lv.rings[ri]; const from = R.vis; R.cont += dir * k; R.pop = now(); if (how !== 'drag') R.anim = { from, to: R.cont, t0: now(), ms: spin, back: true }; }
+  Snd.ratchet(dir); for (let i = 1; i < k; i++) setTimeout(() => Snd.ratchet(dir), i * spin / k / G.timeScale); buzz(6);
   if (info.code === 'ok'){
     G.view = cloneState(before); G.view.ang = G.s.ang.slice();
-    const ts = G.timeScale, t0 = now() + (how === 'drag' ? 60 : CFG.CLICK_MS) / ts, tA = t0 + (CFG.VALVE_MS + 140) / ts, tB = tA + info.amount * CFG.POUR_MS / ts;
+    const ts = G.timeScale, t0 = now() + (how === 'drag' ? 60 : spin) / ts, tA = t0 + (CFG.VALVE_MS + 140) / ts, tB = tA + info.amount * CFG.POUR_MS / ts;
     G.pour = { info, t0, tA, tB, tEnd: tB + 420 / ts, opened: false, nextGrain: tA - 120 / ts, landed: 0 };
     if (lv){
       const S = lv.rings[info.src]; S.pT = info.srcEnd === 0 ? 0 : CFG.RING_CAP - before.rings[info.src].length;     // цепочка прижата к выпуску
@@ -1489,11 +1616,40 @@ function turnRing(ri, dir, how){
     log('fx.start', 'pour', 'from=' + info.srcId + ' end=E' + info.srcEnd + ' valve=' + info.valve + ' to=' + info.to + ' color=' + info.color + ' amount=' + info.amount + (info.feed ? ' feed' : ''));
   } else {
     G.view = cloneState(G.s);
-    const t = denyText(info); if (t && info.at && OUTLET[info.at]) toast(t, 1500);
-    const reason = deadReason(G.s); if (reason) showDead(reason);
+    denyFx(info);
+    const di = deadInfo(G.s); if (di) showDead(di);
   }
   hud();
   return true;
+}
+// v0.6.1, П-5: отказ щелчка — на поле, а не тостом. Не тот цвет над воронкой (или банка полна) — воронка (крышка) качнулась;
+// вход подковы ниже не под струёй (или она полна) — пунктир струи на миг упирается в её стекло, подкова вздрагивает.
+// В обоих случаях песок у устья «дёргается» и звучит тихий отказ.
+function denyFx(info){
+  const lv = R3 && R3.level; if (!lv || !info.at || !OUTLET[info.at] || !['wrongJar', 'jarFull', 'closedBelow', 'ringFull'].includes(info.code)) return;
+  const t = now(), L = G.s.L;
+  if (info.code === 'wrongJar' || info.code === 'jarFull') G.fx.push({ kind: 'wobble', ji: jarIndex(L, info.to), t0: t });
+  else { G.deny = { valve: info.valve, color: info.color, until: t + VIEW.DENY_ROUTE_MS / G.timeScale }; const ti = ringIndex(L, info.to); if (ti >= 0) lv.rings[ti].shake = t + 140 / G.timeScale; }
+  if (info.src !== undefined) lv.rings[info.src].jerk = { t0: t + 60 / G.timeScale, e: info.srcEnd };
+  setTimeout(() => Snd.nope(), 70 / G.timeScale); log('event', 'deny', info.code + ' ' + info.valve + ' ' + (info.color || ''));
+}
+// Тап по подкове (палец, очередь, хук). Пока сыплется — тап встаёт в очередь (П-4): до QUEUE_MAX, подкова сразу вздрагивает
+// в ответ; лишний — «дрожь» и тихий отказ. Макро-режим (П-8) — щелчки до ближайшего пересыпания.
+function tapRing(ri, how){
+  if (!G.s || G.screen !== 'game' || G.ending) return false;
+  if (G.pour || G.queue.length){
+    const R = R3 && R3.level && R3.level.rings[ri];
+    if (G.queue.length < VIEW.QUEUE_MAX){ G.queue.push({ ri, dir: 1 }); if (R) R.pop = now(); Snd.tick(); log('input', 'queue', 'ring=' + G.s.L.rings[ri].id + ' n=' + G.queue.length); }
+    else { if (R) R.shake = now(); Snd.nope(); log('input', 'queue.full', 'ring=' + G.s.L.rings[ri].id); }
+    return false;
+  }
+  return turnRing(ri, 1, how, G.tapMacro ? macroSteps(G.s, ri, 1) : 1);
+}
+function drainQueue(tNow){
+  if (!G.queue.length || G.pour || G.ending || G.screen !== 'game' || tNow < G.queueAt) return;
+  if (G.dead){ G.queue.length = 0; return; }
+  const q = G.queue.shift(); G.queueAt = tNow + (CFG.CLICK_MS + 60) / G.timeScale;
+  turnRing(q.ri, q.dir, 'queue', G.tapMacro ? macroSteps(G.s, q.ri, q.dir) : 1);
 }
 // Путь песчинок: из устья отвесно вниз — в банку до горки или во вход подковы ниже и по её трубке к цепочке.
 function pourPath(info){
@@ -1541,19 +1697,25 @@ function finishPour(){
     setTimeout(celebrate, VIEW.LID_MS * 0.8 / G.timeScale);
     G.save.done[G.s.li] = true; G.save.level = Math.max(G.save.level, Math.min(G.s.li + 1, LEVELS.length - 1)); save();
   } else {
-    const reason = deadReason(G.s);
-    if (reason) showDead(reason);
+    const di = deadInfo(G.s);
+    if (di) showDead(di);
   }
   hud();
 }
 function undo(){
   if (!G.s || G.pour || G.ending || !G.s.hist.length) return;
-  const was = G.s; G.s = undoMove(G.s); G.view = cloneState(G.s); hideDead(); log('input', 'undo', 'moves=' + G.s.moves);
+  const was = G.s, wasDead = !!G.dead || isDead(was), grp = G.s.hist[G.s.hist.length - 1].grp, turned = new Array(G.s.L.rings.length).fill(0);
+  do { const h = G.s.hist[G.s.hist.length - 1]; if (h.mv !== undefined) turned[h.mv >> 1] += (h.mv & 1) ? -1 : 1; G.s = undoMove(G.s); }
+  while (grp && G.s.hist.length && G.s.hist[G.s.hist.length - 1].grp === grp);
+  G.view = cloneState(G.s); hideDead(); G.queue.length = 0; log('input', 'undo', 'moves=' + G.s.moves);
   Snd.tick();
+  if (wasDead && G.s.li <= 2){ const m = hintMove(G.s); if (m !== null){ G.hint = { m, until: now() + 3600, auto: true }; log('event', 'hint.auto', 'ring=' + G.s.L.rings[m >> 1].id + ' dir=' + ((m & 1) ? 'ccw' : 'cw')); } }
   const lv = R3 && R3.level;
   if (lv){
     lv.rings.forEach((R, ri) => {
-      const d = posNorm(G.s.ang[ri] - was.ang[ri]); if (d){ const dir = d === 1 ? 1 : -1, from = R.vis; R.cont += dir; R.anim = { from, to: R.cont, t0: now(), ms: CFG.CLICK_MS, back: false }; }
+      let d = -turned[ri];
+      if (!d){ const q = posNorm(G.s.ang[ri] - was.ang[ri]); d = q ? (q === 1 ? 1 : -1) : 0; }
+      if (d){ const from = R.vis; R.cont += d; R.anim = { from, to: R.cont, t0: now(), ms: CFG.CLICK_MS + 50 * (Math.abs(d) - 1), back: false }; }
       if (G.s.rings[ri].join('') !== was.rings[ri].join('')){ R.p = R.pT = restOffset(G.s.ang[ri], G.s.rings[ri].length); }
     });
     G.s.L.jars.forEach((J, ji) => { const Jv = lv.jars[ji]; if (Jv.closed && G.s.jars[ji] < J.cap){ Jv.closed = false; Jv.order = 0; Jv.lid.position.copy(Jv.lidOpen); Jv.lid.visible = false; Jv.funnel.visible = true; Jv.funnel.scale.setScalar(1); Jv.g.scale.set(1, 1, 1); } });
@@ -1562,10 +1724,11 @@ function undo(){
   }
   hud();
 }
+// Подсказка картинкой (v0.6.1, П-3): призрак подковы в следующем положении, изогнутая стрелка, куда крутить, и исход — без тоста с буквой.
 function showHint(m, ms){
-  if (m === undefined){ m = G.s ? hintMove(G.s) : null; if (m === null){ toast(G.s && GRAPH_PENDING.has(G.s.L) ? 'Секунду — считаю' : 'Отсюда не выйти — отмени ход'); return; } }
-  G.hint = { m, until: now() + (ms || 2600) }; log('event', 'hint', 'ring=' + G.s.L.rings[m >> 1].id + ' dir=' + ((m & 1) ? 'ccw' : 'cw'));
-  toast(((m & 1) ? 'Против часовой' : 'По часовой') + ': подкова ' + G.s.L.rings[m >> 1].id, 1800);
+  if (m === undefined){ m = G.s ? hintMove(G.s) : null;
+    if (m === null){ if (G.s && GRAPH_PENDING.has(G.s.L)) toast('Секунду — считаю'); else { Snd.nope(); $('btn-undo').classList.add('pulse'); } return; } }
+  G.hint = { m, until: now() + (ms || 2800) }; log('event', 'hint', 'ring=' + G.s.L.rings[m >> 1].id + ' dir=' + ((m & 1) ? 'ccw' : 'cw'));
 }
 
 // --- частицы и разовые эффекты (позиции — функция от абсолютного времени) ---
@@ -1644,6 +1807,10 @@ function updateFx(tNow){
   G.fx = G.fx.filter(f => {
     const k = (tNow - f.t0) / ((f.kind === 'lid' ? VIEW.LID_MS : VIEW.UNLOCK_MS) / G.timeScale);
     if (k < 0) return true;
+    if (f.kind === 'wobble'){                // П-5: не тот цвет / банка полна — воронка (или крышка) качнулась
+      const J = lv.jars[f.ji]; if (!J) return false; const kk = Math.min(1, (tNow - f.t0) / (460 / G.timeScale)), obj = J.funnel.visible ? J.funnel : J.lid;
+      obj.rotation.z = 0.2 * Math.sin(kk * Math.PI * 5) * (1 - kk); if (kk >= 1){ obj.rotation.z = 0; return false; } return true;
+    }
     if (f.kind === 'lid'){
       const J = lv.jars[f.ji], e = ease.inOut(Math.min(1, k));
       J.funnel.scale.setScalar(Math.max(0.001, 1 - Math.min(1, k * 2.5))); if (k * 2.5 >= 1) J.funnel.visible = false;      // воронка уходит, крышка садится
@@ -1713,11 +1880,13 @@ function updatePour(tNow){
     if (!J.bump) J.bump = tNow;
   }
   if (tNow >= P.tB && !P.thud){ P.thud = true; if (info.ji !== undefined) Snd.thud(); }
-  if (tNow >= P.tEnd) finishPour();
+  if (tNow >= P.tEnd || (G.queue.length && tNow >= P.tB + 200 / ts)) finishPour();
 }
 
 // --- ввод: Pointer Events. Палец на подкове: драг крутит её за пальцем, щелчок — на полпути до соседнего положения;
-// тап (сдвиг меньше 10 px, ни одного щелчка) — один щелчок по часовой. pointercancel = отпускание без тапа (§3). ---
+// тап (сдвиг меньше 10 px, ни одного щелчка, отпустил раньше HOLD_LOOK_MS) — щелчок по часовой (в макро-режиме — до пересыпания).
+// v0.6.1, П-1: удержание дольше HOLD_LOOK_MS без драга — только посмотреть: превью видно с HOLD_SHOW_MS, отпускание хода не делает.
+// Одна граница, без мёртвой зоны; меряется по e.timeStamp самих событий, а не по кадру. pointercancel = отпускание без тапа (§3). ---
 const cv = $('gl');
 function ringScreen(ri){
   const r = G.s.L.rings[ri], rect = cv.getBoundingClientRect();
@@ -1738,7 +1907,7 @@ cv.addEventListener('pointerdown', (e) => {
   if (ri < 0){ log('input', 'miss'); return; }
   if (ringLocked(G.s, ri)){ log('input', 'press', 'ring=' + G.s.L.rings[ri].id + ' locked'); const info = moveInfo(G.s, moveOf(ri, 1)); Snd.deny(); buzz(15); toast(denyText(info)); R3.level.rings[ri].shake = now(); return; }
   const s = ringScreen(ri);
-  G.press = { ri, id: e.pointerId, x: e.clientX, y: e.clientY, cx: s.x, cy: s.y, rpx: s.rpx, a: 0, acc: 0, drag: false, dir: 0, clicks: 0 };
+  G.press = { ri, id: e.pointerId, x: e.clientX, y: e.clientY, cx: s.x, cy: s.y, rpx: s.rpx, a: 0, acc: 0, drag: false, dir: 0, clicks: 0, ts: e.timeStamp, at: now(), looked: false };
   G.press.a = pointerAngle(G.press, e);
   try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   G.hint = null;
@@ -1766,13 +1935,15 @@ function onUp(e){
   G.press = null;
   const R = R3 && R3.level && R3.level.rings[P.ri];
   if (R && P.drag){ R.anim = { from: R.vis, to: R.cont, t0: now(), ms: 140, back: false }; }
-  if (e.type === 'pointercancel') return;
-  if (!P.drag && !P.clicks) turnRing(P.ri, 1, 'tap');
+  if (e.type === 'pointercancel' || P.drag || P.clicks) return;
+  const held = e.timeStamp - P.ts;
+  if (held >= VIEW.HOLD_LOOK_MS){ log('input', 'look', 'ring=' + G.s.L.rings[P.ri].id + ' held=' + Math.round(held) + 'ms'); return; }
+  tapRing(P.ri, 'tap');
 }
 cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
 document.addEventListener('keydown', (e) => {            // дубли на клавиатуру для отладки (§3): цифра — по часовой, Shift+цифра — против
   const mm = /^Digit([1-9])$/.exec(e.code);
-  if (mm && G.s) turnRing(+mm[1] - 1, e.shiftKey ? -1 : 1, 'key');
+  if (mm && G.s){ if (e.shiftKey) turnRing(+mm[1] - 1, -1, 'key'); else tapRing(+mm[1] - 1, 'key'); }
   if (e.key === 'z' || e.key === 'u') undo(); if (e.key === 'r' && G.s) startLevel(G.s.li); if (e.key === 'm') goto('menu'); if (e.key === 'h') showHint();
 });
 $('btn-undo').onclick = () => { Snd.init(); log('input', 'button', 'undo'); undo(); };
@@ -1803,6 +1974,9 @@ function renderFrame(){
   const tNow = now(), t0 = performance.now();
   if (R3.level && G.view){
     updatePour(tNow);
+    drainQueue(tNow);
+    const P = G.press;
+    if (P && !P.drag && !P.clicks && !P.looked && tNow - P.at >= VIEW.HOLD_LOOK_MS){ P.looked = true; buzz(4); log('input', 'hold', 'ring=' + G.s.L.rings[P.ri].id); }   // дальше отпускание — без хода
     syncView(tNow);
     updateFx(tNow);
     updateParts(tNow);
@@ -1869,12 +2043,15 @@ function benchStats(ints){
 window.KLAPANY = {
   G, LEVELS, PERF, get R3(){ return R3; },
   state(){ return G.s ? { level: G.s.li + 1, name: G.s.L.name, rings: G.s.rings.map(r => r.join('') || '·').join(' '), ang: G.s.ang.join(''), jars: G.s.jars.join('/'), moves: G.s.moves, par: G.par,
-    win: isWin(G.s), dead: G.dead, pouring: !!G.pour, screen: G.screen } : { screen: G.screen }; },
+    win: isWin(G.s), dead: G.dead, deadColor: G.deadInfo ? G.deadInfo.color : null, pouring: !!G.pour, queue: G.queue.length, tap: G.tapMacro ? 'macro' : 'click',
+    hint: G.hint && now() < G.hint.until ? ((G.hint.m & 1) ? 'ccw ' : 'cw ') + G.s.L.rings[G.hint.m >> 1].id + (G.hint.auto ? ' auto' : '') : '', screen: G.screen } : { screen: G.screen }; },
   play(n){ startLevel(Math.max(0, Math.min(LEVELS.length, n || 1) - 1)); return this.state(); },
   turn(ri, dir){ turnRing(ri, dir || 1, 'key'); return this.state(); },
-  tap(ri){ turnRing(ri, 1, 'tap'); return this.state(); },
-  press(ri, dir){ G.press = { ri, id: -1, x: 0, y: 0, cx: 0, cy: 0, rpx: 1, a: 0, acc: 0, drag: false, dir: dir || 0, clicks: 0 }; return moveInfo(G.s, moveOf(ri, dir || 1)); },
-  release(){ const P = G.press; G.press = null; return P ? turnRing(P.ri, P.dir || 1, 'tap') : false; },
+  tap(ri){ tapRing(ri, 'tap'); return this.state(); },
+  // press/release — как палец: превью с HOLD_SHOW_MS; release() после HOLD_LOOK_MS хода не делает (П-1). at — сдвинуть начало нажатия назад, мс.
+  press(ri, dir, ago){ G.press = { ri, id: -1, x: 0, y: 0, cx: 0, cy: 0, rpx: 1, a: 0, acc: 0, drag: false, dir: dir || 0, clicks: 0, ts: 0, at: now() - (ago === undefined ? VIEW.HOLD_SHOW_MS : ago), looked: false }; return moveInfo(G.s, moveOf(ri, dir || 1)); },
+  release(){ const P = G.press; G.press = null; if (!P || now() - P.at >= VIEW.HOLD_LOOK_MS) return false; return (P.dir || 1) < 0 ? turnRing(P.ri, -1, 'tap') : tapRing(P.ri, 'tap'); },
+  tapMode(macro){ if (macro !== undefined){ G.tapMacro = !!macro; } return G.tapMacro ? 'macro' : 'click'; },
   undo(){ undo(); return this.state(); },
   goto(screen){ goto(screen); return G.screen; },
   solve(){ return G.s ? solve(G.s) : null; },
